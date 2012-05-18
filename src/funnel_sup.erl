@@ -1,0 +1,35 @@
+-module(funnel_sup).
+
+-behaviour(supervisor).
+
+%% API exports
+-export([start_link/0]).
+
+%% suprevisor exports
+-export([init/1]).
+
+-define(CHILD(Mod, Restart, Shutdown),
+    {Mod, {Mod, start_link, []}, Restart, Shutdown, worker, [Mod]}).
+
+%% -------------------------------------------------------------------------
+%% API
+%% -------------------------------------------------------------------------
+
+-spec start_link() -> {'ok', pid()} | {'error', any()}.
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+
+%% -------------------------------------------------------------------------
+%% supervisor callback functions
+%% -------------------------------------------------------------------------
+
+init([]) ->
+    {ok, {{rest_for_one, 5, 30},
+          [?CHILD(temp_fun_cache, permanent, 5000),
+           ?CHILD(fun_amqp_pool, permanent, 5000),
+           ?CHILD(fun_tracker, permanent, 5000),
+           ?CHILD(fun_throttle, permanent, 5000),
+           ?CHILD(fun_throughput, permanent, 5000),
+           ?CHILD(fun_errors, permanent, 5000),
+           ?CHILD(fun_batch_cursor, permanent, 5000),
+           ?CHILD(fun_smpp_server, transient, 5000)]}}.

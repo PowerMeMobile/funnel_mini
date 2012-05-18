@@ -1,0 +1,40 @@
+%% Throughput.
+{throughputSent01, {funnel_mib, throughput, [out, 1]}}.
+{throughputSent05, {funnel_mib, throughput, [out, 5]}}.
+{throughputSent10, {funnel_mib, throughput, [out, 10]}}.
+{throughputRecd01, {funnel_mib, throughput, [in, 1]}}.
+{throughputRecd05, {funnel_mib, throughput, [in, 5]}}.
+{throughputRecd10, {funnel_mib, throughput, [in, 10]}}.
+
+%% Connections.
+{connsBound, {funnel_mib, conns_bound, []}}.
+{connTable,  {funnel_mib, conn_table, []}}.
+
+%% Settings.
+{settingsSMPPServerAddr,      {funnel_mib, settings, [smpp_server_addr]}}.
+{settingsSMPPServerPort,      {funnel_mib, settings, [smpp_server_port]}}.
+{settingsSMPPServerSystemId,  {funnel_mib, settings, [smpp_server_system_id]}}.
+{settingsSessionInitTime,     {funnel_mib, settings, [session_init_time]}}.
+{settingsEnquireLinkTime,     {funnel_mib, settings, [enquire_link_time]}}.
+{settingsInactivityTime,      {funnel_mib, settings, [inactivity_time]}}.
+{settingsResponseTime,        {funnel_mib, settings, [response_time]}}.
+{settingsBatchMaxSize,        {funnel_mib, settings, [batch_max_size]}}.
+{settingsBatchMaxWait,        {funnel_mib, settings, [batch_max_wait]}}.
+{settingsFileLogDir,          {funnel_mib, settings, [file_log_dir]}}.
+{settingsFileLogSize,         {funnel_mib, settings, [file_log_size]}}.
+{settingsFileLogRotations,    {funnel_mib, settings, [file_log_rotations]}}.
+{settingsFileLogLevel,        {funnel_mib, settings, [file_log_level]}}.
+{settingsConsoleLogLevel,     {funnel_mib, settings, [console_log_level]}}.
+{settingsLogSMPPPdus,         {funnel_mib, settings, [log_smpp_pdus]}}.
+{settingsSMPPPduLogDir,       {funnel_mib, settings, [smpp_pdu_log_dir]}}.
+{settingsStripLeadingZero,    {funnel_mib, settings, [strip_leading_zero]}}.
+{settingsCountryCode,         {funnel_mib, settings, [country_code]}}.
+{settingsBulkThreshold,       {funnel_mib, settings, [bulk_threshold]}}.
+{settingsRejectSourceTonNpi,  {funnel_mib, settings, [reject_source_ton_npi]}}.
+{settingsCorrectSourceTonNpi, {funnel_mib, settings, [correct_source_ton_npi]}}.
+{settingsConcatMaxWait,       {funnel_mib, settings, [concat_max_wait]}}.
+{settingsCutoffValidityPeriod,{funnel_mib, settings, [cutoff_validity_period]}}.
+{settingsDeliverSMWindowSize, {funnel_mib, settings, [deliver_sm_window_size]}}.
+{settingsThrottleGroupSeconds,{funnel_mib, settings, [throttle_group_seconds]}}.
+{settingsBackendResponseTime, {funnel_mib, settings, [backend_response_time]}}.
+{settingsMaxStopTime,         {funnel_mib, settings, [max_stop_time]}}.

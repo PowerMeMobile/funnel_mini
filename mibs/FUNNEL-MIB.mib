@@ -1,0 +1,443 @@
+FUNNEL-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    enterprises, OBJECT-TYPE, IpAddress
+        FROM SNMPv2-SMI
+    DisplayString, DateAndTime
+        FROM SNMPv2-TC
+    ;
+
+powerMeMobile OBJECT IDENTIFIER ::= { enterprises 20789 }
+funnel        OBJECT IDENTIFIER ::= { powerMeMobile 4 }
+funnelObjects OBJECT IDENTIFIER ::= { funnel 1 }
+
+-- Managed Objects
+
+throughput OBJECT IDENTIFIER ::= { funnelObjects 1 }
+conns      OBJECT IDENTIFIER ::= { funnelObjects 2 }
+settings   OBJECT IDENTIFIER ::= { funnelObjects 3 }
+
+-- Throughput
+
+throughputSent01 OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-only
+    STATUS  mandatory
+    DESCRIPTION
+        "Total SMS sent over the last 1 minute."
+    ::= { throughput 1 }
+
+throughputSent05 OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-only
+    STATUS  mandatory
+    DESCRIPTION
+        "Total SMS sent over the last 5 minutes."
+    ::= { throughput 2 }
+
+throughputSent10 OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-only
+    STATUS  mandatory
+    DESCRIPTION
+        "Total SMSS sent over the last 10 minutes."
+    ::= { throughput 3 }
+
+throughputRecd01 OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-only
+    STATUS  mandatory
+    DESCRIPTION
+        "Total SMS received over the last 1 minute."
+    ::= { throughput 4 }
+
+throughputRecd05 OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-only
+    STATUS  mandatory
+    DESCRIPTION
+        "Total SMS received over the last 5 minutes."
+    ::= { throughput 5 }
+
+throughputRecd10 OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-only
+    STATUS  mandatory
+    DESCRIPTION
+        "Total SMS received over the last 10 minutes."
+    ::= { throughput 6 }
+
+-- Connections
+
+connsBound OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-only
+    STATUS  mandatory
+    DESCRIPTION
+        "Number of bound connections."
+    ::= { conns 1 }
+
+connTable OBJECT-TYPE
+    SYNTAX      SEQUENCE OF ConnEntry
+    ACCESS      not-accessible
+    STATUS      mandatory
+    DESCRIPTION
+        "A table with all bound connections."
+    ::= { conns 2 }
+
+connEntry OBJECT-TYPE
+    SYNTAX      ConnEntry
+    ACCESS      not-accessible
+    STATUS      mandatory
+    DESCRIPTION
+        "A conceptual row in the connTable."
+    INDEX        { connId }
+    ::= { connTable 1 }
+
+ConnEntry ::= SEQUENCE {
+    connId          INTEGER,
+    connUUID        DisplayString (SIZE (36)),
+    connConnectedAt DateAndTime,
+    connType        INTEGER,
+    connAddr        DisplayString,
+    connCustomerId  DisplayString,
+    connUserId      DisplayString,
+    connErrorCount  INTEGER,
+    connSent01      INTEGER,
+    connSent05      INTEGER,
+    connSent10      INTEGER,
+    connRecd01      INTEGER,
+    connRecd05      INTEGER,
+    connRecd10      INTEGER
+}
+
+connId OBJECT-TYPE
+    SYNTAX      INTEGER
+    ACCESS      not-accessible
+    STATUS      mandatory
+    DESCRIPTION ""
+    ::= { connEntry 1 }
+
+connUUID OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE (36))
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "UUID of the connection."
+    ::= { connEntry 2 }
+
+connConnectedAt OBJECT-TYPE
+    SYNTAX      DateAndTime
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "Date and time of connection start."
+    ::= { connEntry 3 }
+
+connType OBJECT-TYPE
+    SYNTAX      INTEGER { transmitter(0), receiver(1), transceiver(2) }
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "Type of the connection."
+    ::= { connEntry 4 }
+
+connAddr OBJECT-TYPE
+    SYNTAX      DisplayString
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "Connection IP address."
+    ::= { connEntry 5 }
+
+connCustomerId OBJECT-TYPE
+    SYNTAX      DisplayString
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "Customer ID."
+    ::= { connEntry 6 }
+
+connUserId OBJECT-TYPE
+    SYNTAX      DisplayString
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "User ID."
+    ::= { connEntry 7 }
+
+connErrorCount OBJECT-TYPE
+    SYNTAX      INTEGER
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "Error count."
+    ::= { connEntry 8 }
+
+connSent01 OBJECT-TYPE
+    SYNTAX      INTEGER
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "SMS sent over the last 1 minute."
+    ::= { connEntry 9 }
+
+connSent05 OBJECT-TYPE
+    SYNTAX      INTEGER
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "SMS sent over the last 5 minutes."
+    ::= { connEntry 10 }
+
+connSent10 OBJECT-TYPE
+    SYNTAX      INTEGER
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "SMS sent over the last 10 minutes."
+    ::= { connEntry 11 }
+
+connRecd01 OBJECT-TYPE
+    SYNTAX      INTEGER
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "SMS received over the last 1 minute."
+    ::= { connEntry 12 }
+
+connRecd05 OBJECT-TYPE
+    SYNTAX      INTEGER
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "SMS received over the last 5 minutes."
+    ::= { connEntry 13 }
+
+connRecd10 OBJECT-TYPE
+    SYNTAX      INTEGER
+    ACCESS      read-only
+    STATUS      mandatory
+    DESCRIPTION
+        "SMS received over the last 10 minutes."
+    ::= { connEntry 14 }
+
+-- Settings
+
+settingsSMPPServerAddr OBJECT-TYPE
+    SYNTAX  IpAddress
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "SMPP server IP address."
+    ::= { settings 1 }
+
+settingsSMPPServerPort OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "SMPP server port."
+    ::= { settings 2 }
+
+settingsSMPPServerSystemId OBJECT-TYPE
+    SYNTAX  DisplayString
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "SMPP server system id."
+    ::= { settings 3 }
+
+settingsSessionInitTime OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "SMPP session init time (in milliseconds), 0 = infinity."
+    ::= { settings 4 }
+
+settingsEnquireLinkTime OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "SMPP enquire link time (in milliseconds), 0 = infinity."
+    ::= { settings 5 }
+
+settingsInactivityTime OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "SMPP inactivity time (in milliseconds), 0 = infinity."
+    ::= { settings 6 }
+
+settingsResponseTime OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "SMPP response time (in milliseconds), 0 = infinity."
+    ::= { settings 7 }
+
+settingsBatchMaxSize OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Max size of an unflushed batch."
+    ::= { settings 8 }
+
+settingsBatchMaxWait OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Max waiting time (in milliseconds) before flushing a batch."
+    ::= { settings 9 }
+
+settingsFileLogDir OBJECT-TYPE
+    SYNTAX  DisplayString
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Directory name for storing log files."
+    ::= { settings 10 }
+
+settingsFileLogSize OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Max size of an individual log file (in bytes)."
+    ::= { settings 11 }
+
+settingsFileLogRotations OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Max number of log file rotations."
+    ::= { settings 12 }
+
+settingsFileLogLevel OBJECT-TYPE
+    SYNTAX  INTEGER { debug(0), info(1), warn(2), error(3), fatal(4), none(5) }
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "File log level."
+    ::= { settings 13 }
+
+settingsConsoleLogLevel OBJECT-TYPE
+    SYNTAX  INTEGER { debug(0), info(1), warn(2), error(3), fatal(4), none(5) }
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Console log level."
+    ::= { settings 14 }
+
+settingsLogSMPPPdus OBJECT-TYPE
+    SYNTAX  INTEGER { false(0), true(1) }
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Whether or not to log SMPP pdus."
+    ::= { settings 15 }
+
+settingsSMPPPduLogDir OBJECT-TYPE
+    SYNTAX  DisplayString
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Log dir for SMPP pdu logs."
+    ::= { settings 16 }
+
+settingsStripLeadingZero OBJECT-TYPE
+    SYNTAX  INTEGER { false(0), true(1) }
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Whether or not to strip leading zero."
+    ::= { settings 17 }
+
+settingsCountryCode OBJECT-TYPE
+    SYNTAX  DisplayString
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Country code."
+    ::= { settings 18 }
+
+settingsBulkThreshold OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Use bulk gateways starting with this batch size."
+    ::= { settings 19 }
+
+settingsRejectSourceTonNpi OBJECT-TYPE
+    SYNTAX  INTEGER { false(0), true(1) }
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Whether or not to reject invalid source TON and NPI."
+    ::= { settings 20 }
+
+settingsCorrectSourceTonNpi OBJECT-TYPE
+    SYNTAX  INTEGER { false(0), true(1) }
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Whether or not to correct invalid source TON and NPI."
+    ::= { settings 21 }
+
+settingsConcatMaxWait OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Max waiting time (in milliseconds) before giving up on concatenation."
+    ::= { settings 22 }
+
+settingsCutoffValidityPeriod OBJECT-TYPE
+    SYNTAX  INTEGER { false(0), true(1) }
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Whether or not to cut off exceeding validity period."
+    ::= { settings 23 }
+
+settingsDeliverSMWindowSize OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Window size for deliver_sm operation."
+    ::= { settings 24 }
+
+settingsThrottleGroupSeconds OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Throttle using groups of N seconds for smoothing."
+    ::= { settings 25 }
+
+settingsBackendResponseTime OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Maximum time interval to wait for backend response."
+    ::= { settings 26 }
+
+settingsMaxStopTime OBJECT-TYPE
+    SYNTAX  INTEGER
+    ACCESS  read-write
+    STATUS  mandatory
+    DESCRIPTION
+        "Maximum time interval to wait for SMPP server to stop."
+    ::= { settings 27 }
+
+END

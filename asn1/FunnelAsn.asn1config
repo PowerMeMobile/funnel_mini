@@ -1,0 +1,13 @@
+{exclusive_decode, {'FunnelAsn', [
+    {outgoing_batch_messages, ['OutgoingBatch', [
+        {id, undecoded}, {messages, parts}
+    ]]},
+    {receipt_batch_messages, ['ReceiptBatch', [
+        {id, undecoded}, {receipts, parts}
+    ]]}
+]}}.
+
+{selective_decode, {'FunnelAsn', [
+    {outgoing_batch_id, ['OutgoingBatch', id]},
+    {receipt_batch_id,  ['ReceiptBatch',  id]}
+]}}.

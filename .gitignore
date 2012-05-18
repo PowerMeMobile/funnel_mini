@@ -1,0 +1,10 @@
+deps
+ebin
+.eunit
+src/FunnelAsn.erl
+src/JustAsn.erl
+include/FunnelAsn.hrl
+include/JustAsn.hrl
+src/*.asn1db
+priv/mibs/*.bin
+mibs/.index

@@ -1,0 +1,182 @@
+FunnelAsn DEFINITIONS IMPLICIT TAGS ::=
+BEGIN
+
+BindRequest ::= SEQUENCE {
+    connectionId [0] IA5String,
+    remoteIp     [1] IA5String,
+    customerId   [2] IA5String,
+    userId       [3] IA5String,
+    password     [4] IA5String,
+    type         [5] ENUMERATED { transmitter(0), receiver(1), transceiver(2) },
+    isCached     [6] BOOLEAN,
+    timestamp    [7] PreciseTime,
+    expiration   [8] PreciseTime
+}
+
+PreciseTime ::= SEQUENCE {
+    time         [0] UTCTime,
+    milliseconds [1] INTEGER
+}
+
+BindResponse ::= SEQUENCE {
+    connectionId [0] IA5String,
+    result       [1] CHOICE { customer [0] Customer,
+                              error    [1] IA5String }
+}
+
+Customer ::= SEQUENCE {
+    id                [0]  IA5String,
+    uuid              [1]  IA5String,
+    priority          [2]  INTEGER,
+    rps               [3]  INTEGER OPTIONAL,
+    allowedSources    [4]  SEQUENCE OF Addr,
+    defaultSource     [5]  Addr OPTIONAL,
+    networks          [6]  SEQUENCE OF Network,
+    providers         [7]  SEQUENCE OF Provider,
+    defaultProviderId [8]  IA5String OPTIONAL,
+    receiptsAllowed   [9]  BOOLEAN,
+    noRetry           [10] BOOLEAN,
+    defaultValidity   [11] IA5String,
+    maxValidity       [12] INTEGER -- in seconds (relative)
+}
+
+Provider ::= SEQUENCE {
+    id                [0] IA5String,
+    gateway           [1] IA5String,
+    bulkGateway       [2] IA5String,
+    receiptsSupported [3] BOOLEAN
+}
+
+Network ::= SEQUENCE {
+    id          [0] IA5String,
+    countryCode [1] IA5String,
+    numbersLen  [2] INTEGER, -- including country code and prefixes.
+    prefixes    [3] SEQUENCE OF IA5String,
+    providerId  [4] IA5String
+}
+
+DisconnectRequest ::= SEQUENCE {
+    customerId   [0] IA5String,
+    userId       [1] IA5String,
+    connectionId [2] IA5String OPTIONAL
+}
+
+DisconnectResponse ::= SEQUENCE {
+}
+
+ConnectionsRequest ::= SEQUENCE {
+}
+
+ConnectionsResponse ::= SEQUENCE {
+    connections [0] SEQUENCE OF Connection
+}
+
+ThroughputRequest ::= SEQUENCE {
+}
+
+ThroughputResponse ::= SEQUENCE {
+    slices [0] SEQUENCE OF Slice
+}
+
+Slice ::= SEQUENCE {
+    periodStart [0] UTCTime,
+    counters    [1] SEQUENCE OF Counter
+}
+
+Counter ::= SEQUENCE {
+    connectionId [0] IA5String,
+    direction    [1] ENUMERATED { in(0), out(1) },
+    count        [2] INTEGER
+}
+
+Connection ::= SEQUENCE {
+    connectionId     [0] IA5String,
+    remoteIp         [1] IA5String,
+    customerId       [2] IA5String,
+    userId           [3] IA5String,
+    connectedAt      [4] UTCTime,
+    type             [5] ENUMERATED { transmitter(0), receiver(1), transceiver(2) },
+    msgsReceived     [6] INTEGER,
+    msgsSent         [7] INTEGER,
+    errors           [8] SEQUENCE OF Error
+}
+
+ServerUpEvent ::= SEQUENCE {
+    timestamp [0] UTCTime
+}
+
+ServerDownEvent ::= SEQUENCE {
+    timestamp [0] UTCTime
+}
+
+ConnectionUpEvent ::= SEQUENCE {
+    connectionId [0] IA5String,
+    customerId   [1] IA5String,
+    userId       [2] IA5String,
+    type         [3] ENUMERATED { transmitter(0), receiver(1), transceiver(2) },
+    connectedAt  [4] UTCTime,
+    timestamp    [5] UTCTime
+}
+
+ConnectionDownEvent ::= SEQUENCE {
+    connectionId     [0] IA5String,
+    customerId       [1] IA5String,
+    userId           [2] IA5String,
+    type             [3] ENUMERATED { transmitter(0), receiver(1), transceiver(2) },
+    connectedAt      [4] UTCTime,
+    msgsReceived     [5] INTEGER,
+    msgsSent         [6] INTEGER,
+    errors           [7] SEQUENCE OF Error,
+    reason           [8] ENUMERATED { normal(0), closed(1), unbound(2), other(3) },
+    timestamp        [9] UTCTime
+}
+
+Error ::= SEQUENCE {
+    errorCode [0] INTEGER,
+    timestamp [1] UTCTime
+}
+
+OutgoingBatch ::= SEQUENCE {
+    id       [0] IA5String,
+    messages [1] SEQUENCE OF OutgoingMessage
+}
+
+OutgoingMessage ::= SEQUENCE {
+    source     [0] Addr,
+    dest       [1] Addr,
+    message    [2] OCTET STRING,
+    dataCoding [3] CHOICE { text  [0] ENUMERATED { gsm0338(0), ucs2(8) },
+                            other [1] INTEGER }
+}
+
+ReceiptBatch ::= SEQUENCE {
+    id       [0] IA5String,
+    receipts [1] SEQUENCE OF DeliveryReceipt
+}
+
+DeliveryReceipt ::= SEQUENCE {
+    messageId    [0] IA5String,
+    submitDate   [1] UTCTime,
+    doneDate     [2] UTCTime,
+    messageState [3] ENUMERATED { delivered(2),
+                                  expired(3),
+                                  deleted(4),
+                                  undeliverable(5),
+                                  accepted(6),
+                                  unknown(7),
+                                  rejected(8) },
+    source       [4] Addr,
+    dest         [5] Addr
+}
+
+BatchAck ::= SEQUENCE {
+    batchId [0] IA5String
+}
+
+Addr ::= SEQUENCE {
+    addr [0] IA5String,
+    ton  [1] INTEGER,
+    npi  [2] INTEGER
+}
+
+END
