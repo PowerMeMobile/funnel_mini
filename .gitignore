@@ -5,6 +5,7 @@ src/FunnelAsn.erl
 src/JustAsn.erl
 include/FunnelAsn.hrl
 include/JustAsn.hrl
+include/FUNNEL-MIB.hrl
 src/*.asn1db
 priv/mibs/*.bin
 mibs/.index

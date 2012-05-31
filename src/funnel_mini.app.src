@@ -3,9 +3,12 @@
   {vsn, "0.0.0"},
   {applications, [kernel,
                   stdlib,
-                  log4erl,
+                  snmp,
+                  os_mon,
+                  log4erl, % FIXME
                   common_lib,
                   mnesia,
-                  snmp,
-                  gproc]},
+                  amqp_client,
+                  gproc,
+                  lager]},
   {mod, {funnel_app, []}}]}.
