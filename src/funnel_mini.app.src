@@ -10,5 +10,6 @@
                   mnesia,
                   amqp_client,
                   gproc,
-                  lager]},
+                  lager,
+                  billy_client]},
   {mod, {funnel_app, []}}]}.
