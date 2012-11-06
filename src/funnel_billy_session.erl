@@ -29,7 +29,7 @@ get_session_id() ->
 %% -------------------------------------------------------------------------
 
 init([]) ->
-    P = fun(Prop) -> application:get_env(billy_client, Prop) end,
+    P = fun(Prop) -> {ok, Value} = application:get_env(billy_client, Prop), Value end,
     case billy_client:start_session(P(host), P(port), P(username), P(password)) of
         {ok, SessionId} ->
             {ok, #st{session_id = SessionId}};

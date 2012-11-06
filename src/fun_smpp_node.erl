@@ -606,9 +606,9 @@ step(billy_reserve_or_accept, {SeqNum, Params}, St) ->
     step(billy_reserve, {SeqNum, Params}, St);
 
 step(billy_reserve, {SeqNum, Params}, St) ->
-    {ok, SessionId} = k1api_billy_session:get_session_id(),
+    {ok, SessionId} = funnel_billy_session:get_session_id(),
     case billy_client:reserve(SessionId, ?CLIENT_TYPE_FUNNEL,
-            list_to_binary(St#st.customer_uuid), list_to_binary(St#st.user_id),
+            uuid:parse(list_to_binary(St#st.customer_uuid)), list_to_binary(St#st.user_id),
             ?SERVICE_TYPE_SMS_ON, 1) of
         {accepted, TransactionId} ->
             Result = step(accept, {SeqNum, Params}, St),
