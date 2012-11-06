@@ -1,5 +1,6 @@
 -module(fun_smpp_node).
 
+-include_lib("billy_client/include/billy_client.hrl").
 -include_lib("oserl/include/oserl.hrl").
 -include("otp_records.hrl").
 -include("helpers.hrl").
@@ -560,7 +561,7 @@ step(verify_message_length, {SeqNum, Params}, St) ->
             step(verify_registered_delivery, {SeqNum, Params}, St);
         false ->
             {error, ?ESME_RINVMSGLEN, "short_message too long"}
-end;
+    end;
 
 step(verify_registered_delivery, {SeqNum, Params}, St) ->
     RD = ?gv(registered_delivery, Params),
@@ -576,7 +577,7 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
     case ?gv(validity_period, Params) of
         "" ->
             Params1 = ?KEYREPLACE3(validity_period, St#st.default_validity, Params),
-            step(maybe_concat_parts, {SeqNum, Params1}, St);
+            step(billy_reserve_or_accept, {SeqNum, Params1}, St);
         VP ->
             Delta = time_delta(VP),
             DoCutoff = funnel_conf:get(cutoff_validity_period),
@@ -591,15 +592,36 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
                         [St#st.customer_id, St#st.user_id, VP, NewVP]
                     ),
                     Cutoff = ?KEYREPLACE3(validity_period, NewVP, Params),
-                    step(maybe_concat_parts, {SeqNum, Cutoff}, St);
+                    step(billy_reserve_or_accept, {SeqNum, Cutoff}, St);
                 Delta > St#st.max_validity ->
                     {error, ?ESME_RINVEXPIRY, "validity_period too long"};
                 true ->
-                    step(maybe_concat_parts, {SeqNum, Params}, St)
+                    step(billy_reserve_or_accept, {SeqNum, Params}, St)
             end
     end;
 
-step(maybe_concat_parts, {SeqNum, Params}, St) ->
+step(billy_reserve_or_accept, {SeqNum, Params}, St) ->
+    % TODO: when kelly starts supporting billing_type, make the check here
+    % and go either to 'billy_reserve' or 'accept' step depending on it.
+    step(billy_reserve, {SeqNum, Params}, St);
+
+step(billy_reserve, {SeqNum, Params}, St) ->
+    {ok, SessionId} = k1api_billy_session:get_session_id(),
+    case billy_client:reserve(SessionId, ?CLIENT_TYPE_FUNNEL,
+            list_to_binary(St#st.customer_uuid), list_to_binary(St#st.user_id),
+            ?SERVICE_TYPE_SMS_ON, 1) of
+        {accepted, TransactionId} ->
+            Result = step(accept, {SeqNum, Params}, St),
+            case Result of
+                ok            -> billy_client:commit(TransactionId);
+                {error, _, _} -> billy_client:rollback(TransactionId)
+            end,
+            Result;
+        {rejected, _Reason} ->
+            {error, ?ESME_RSUBMITFAIL, "rejected by billy"}
+    end;
+
+step(accept, {SeqNum, Params}, St) ->
     case ?gv(sar_msg_ref_num, Params) of
         undefined ->
             step(take_fingerprints, {SeqNum, Params}, St);
