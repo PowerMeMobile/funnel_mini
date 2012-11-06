@@ -37,7 +37,8 @@ Customer ::= SEQUENCE {
     receiptsAllowed   [9]  BOOLEAN,
     noRetry           [10] BOOLEAN,
     defaultValidity   [11] IA5String,
-    maxValidity       [12] INTEGER -- in seconds (relative)
+    maxValidity       [12] INTEGER, -- in seconds (relative)
+	billingType       [13] ENUMERATED { prepaid(0), postpaid(1) }
 }
 
 Provider ::= SEQUENCE {

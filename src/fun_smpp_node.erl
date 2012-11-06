@@ -49,6 +49,7 @@
              default_provider_id :: string(),
              default_validity :: string(),
              max_validity     :: pos_integer(),
+             billing_type     :: prepaid | postpaid,
              batch_tab        :: ets:tid(),
              parts_tab        :: ets:tid(),
              coverage_tab     :: ets:tid(),
@@ -203,7 +204,9 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                    no_retry = ?gv(no_retry, Customer),
                    default_provider_id = ?gv(default_provider_id, Customer),
                    default_validity = ?gv(default_validity, Customer),
-                   max_validity = ?gv(max_validity, Customer)}};
+                   max_validity = ?gv(max_validity, Customer),
+                   billing_type = ?gv(billing_type, Customer)
+              }};
         {error, Error} ->
             fun_errors:record(St#st.uuid, Error),
             {reply, {error, Error}, St}
@@ -601,9 +604,14 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
     end;
 
 step(billy_reserve_or_accept, {SeqNum, Params}, St) ->
-    % TODO: when kelly starts supporting billing_type, make the check here
-    % and go either to 'billy_reserve' or 'accept' step depending on it.
-    step(billy_reserve, {SeqNum, Params}, St);
+	case St#st.billing_type of
+		postpaid ->
+			log4erl:debug("node: send without billing"),
+			step(accept, {SeqNum, Params}, St);
+		prepaid ->
+			log4erl:debug("node: send with billing"),
+		    step(billy_reserve, {SeqNum, Params}, St)
+	end;
 
 step(billy_reserve, {SeqNum, Params}, St) ->
     {ok, SessionId} = funnel_billy_session:get_session_id(),

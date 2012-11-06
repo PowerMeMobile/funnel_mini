@@ -356,15 +356,15 @@ handle_bind_response(Payload, Node, Nodes, St) ->
                         defaultProviderId = DefaultId,
                         receiptsAllowed = ReceptsAllowed,
                         noRetry = NoRetry, defaultValidity = DefaultValidity,
-                        maxValidity = MaxValidity} = Customer,
+                        maxValidity = MaxValidity, billingType = BillingType} = Customer,
             LogRps= case Rps of
                         asn1_NOVALUE -> unlimited;
                         _            -> Rps
                     end,
             log4erl:info(
                 "server: granted bind "
-                "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s, rps: ~w)",
-                [Addr, CustomerId, UserId, Password, Type, LogRps]
+                "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s, rps: ~w, billing: ~w)",
+                [Addr, CustomerId, UserId, Password, Type, LogRps, BillingType]
             ),
             case Rps of
                 asn1_NOVALUE -> fun_throttle:unset_rps(CustomerId);
@@ -396,7 +396,8 @@ handle_bind_response(Payload, Node, Nodes, St) ->
                                {receipts_allowed, ReceptsAllowed},
                                {no_retry, NoRetry},
                                {default_validity, DefaultValidity},
-                               {max_validity, MaxValidity}]}),
+                               {max_validity, MaxValidity},
+                               {billing_type, BillingType}]}),
             notify_backend_connection_up(St#st.amqp_chan,
                                          ConnUUID,
                                          CustomerId,
