@@ -616,7 +616,7 @@ step(billy_reserve_or_accept, {SeqNum, Params}, St) ->
 step(billy_reserve, {SeqNum, Params}, St) ->
     {ok, SessionId} = funnel_billy_session:get_session_id(),
     case billy_client:reserve(SessionId, ?CLIENT_TYPE_FUNNEL,
-            uuid:parse(list_to_binary(St#st.customer_uuid)), list_to_binary(St#st.user_id),
+            list_to_binary(St#st.customer_uuid), list_to_binary(St#st.user_id),
             ?SERVICE_TYPE_SMS_ON, 1) of
         {accepted, TransactionId} ->
             Result = step(accept, {SeqNum, Params}, St),
@@ -625,8 +625,8 @@ step(billy_reserve, {SeqNum, Params}, St) ->
                 {error, _, _} -> billy_client:rollback(TransactionId)
             end,
             Result;
-        {rejected, _Reason} ->
-            {error, ?ESME_RSUBMITFAIL, "rejected by billy"}
+        {rejected, Reason} ->
+            {error, ?ESME_RSUBMITFAIL, io_lib:format("rejected by billy with: ~p", [Reason])}
     end;
 
 step(accept, {SeqNum, Params}, St) ->
