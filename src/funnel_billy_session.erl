@@ -30,13 +30,19 @@ get_session_id() ->
 
 init([]) ->
     P = fun(Prop) -> {ok, Value} = application:get_env(billy_client, Prop), Value end,
-    case billy_client:start_session(P(host), P(port), P(username), P(password)) of
-        {ok, SessionId} ->
-            {ok, #st{session_id = SessionId}};
-        {error, econnrefused} ->
-            {ok, #st{}, ?RECONNECT_TIMEOUT};
-        {error, invalid_credentials} ->
-            {error, invalid_credentials}
+	case P(enabled) of
+		true ->
+		    case billy_client:start_session(P(host), P(port), P(username), P(password)) of
+        		{ok, SessionId} ->
+		            {ok, #st{session_id = SessionId}};
+        		{error, econnrefused} ->
+		            {ok, #st{}, ?RECONNECT_TIMEOUT};
+        		{error, invalid_credentials} ->
+		            {error, invalid_credentials}
+			end;
+		false ->
+			gen_server:cast(?MODULE, stop),
+			{ok, #st{}}
     end.
 
 terminate(_Reason, #st{session_id = undefined}) ->
@@ -53,6 +59,9 @@ handle_call(get_session_id, _From, #st{session_id = SessionId} = St) ->
 
 handle_call(Request, _From, St) ->
     {stop, {unexpected_call, Request}, St}.
+
+handle_cast(stop, St) ->
+	{stop, normal, St};
 
 handle_cast(Request, St) ->
     {stop, {unexpected_cast, Request}, St}.
