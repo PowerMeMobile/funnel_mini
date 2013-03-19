@@ -277,8 +277,8 @@ close_all_batches(Toke, Chan) ->
             not_found ->
                 [];
             Value ->
-                [ string:tokens(binary_to_list(CU), ":") ||
-                    CU <- re:split(Value, "/", [trim]) ]
+				[ re:split(CU, ":", [{return, list}]) ||
+				  CU <- re:split(Value, "/", [trim]) ]
         end,
     Batches = lists:flatmap(
         fun([C, U]) ->
