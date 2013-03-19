@@ -58,7 +58,7 @@ default(session_init_time)     -> 10000;
 default(enquire_link_time)     -> 60000;
 default(inactivity_time)       -> infinity;
 default(response_time)         -> 60000;
-default(batch_max_size)        -> 100000;
+default(batch_max_size)        -> 100;
 default(batch_max_wait)        -> 5000;
 default(file_log_dir)          -> "log";
 default(file_log_size)         -> 5000000;
