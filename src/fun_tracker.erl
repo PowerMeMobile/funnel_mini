@@ -330,22 +330,13 @@ publish_user_batch(Toke, Chan, BatchId) ->
                         false -> string:to_lower(?gv("bulk_gateway_id", Common))
                     end,
             Prio = ?gv("priority", Common),
-            Headers = [{request_id, BatchId},
-                       {customer_id, ?gv("customer_uuid", Common)},
-                       {connection_id, ?gv("connection_id", Common)},
-                       {user_id, ?gv("user_id", Common)},
-                       {network_id, ?gv("network_id", Common)},
-                       {provider_id, ?gv("provider_id", Common)},
-                       {gateway_id, GtwId},
-                       {priority, Prio},
-                       {parts_total, Total},
-                       {published_at, fun_time:utc_str()}],
+            Headers = [],
             Basic = #'P_basic'{
                 content_type = <<"SmsRequest">>,
                 delivery_mode = 2,
                 priority = Prio,
                 message_id = BatchId,
-                headers = lists:map(fun(KV) -> encode_header(KV) end, Headers)
+                headers = [ encode_header(H) || H <- Headers ]
             },
             Payload = encode_batch(Common, Dests, BatchId, GtwId),
             BatchQueue = funnel_app:get_env(queue_backend_batches),
@@ -404,6 +395,7 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
         id = BatchId,
         gatewayId = GtwId,
         customerId = ?gv("customer_uuid", Common),
+        userId = ?gv("user_id", Common),
         type = Type,
         message = ?gv("short_message", Common),
         encoding =
