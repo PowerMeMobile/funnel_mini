@@ -176,7 +176,17 @@ handle_call({register_user, CustomerId, UserId}, _From, St) ->
 
 
 handle_call({open_batch, ConnectionId, CustomerId, UserId, Params}, _From, St) ->
-    UUID = uuid:unparse(uuid:generate()),
+	%% Replaced uuid:generate/0 which generates (at least on Linux) random v4 UUIDs
+	%% with uuid:generate_time/0 which generates v1 UUIDs using MAC address and local time.
+	%% These random UUIDs are used in the {ri: 1, imi: 1} index. They are distributed
+	%% evenly and are inserted at different parts of the index's B-tree. Over time the index
+	%% will grow and it won't fit in RAM. Different parts of the index will be swapped in/out,
+	%% and performance will drop severly.
+	%% Time based UUIDs are inserted only to the right part of the B-tree and as the index will grow,
+	%% only the left unused branches are swapped in to the disk and performance degradation is not
+	%% that significant.
+	%% See http://extranet.powermemobile.com/issues/20686 for detail.
+    UUID = uuid:unparse(uuid:generate_time()),
     Obj = [
         % meta.
         {connection_id, ConnectionId},
