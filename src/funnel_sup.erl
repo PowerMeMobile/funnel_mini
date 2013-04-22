@@ -32,4 +32,5 @@ init([]) ->
            ?CHILD(fun_throughput, permanent, 5000),
            ?CHILD(fun_errors, permanent, 5000),
            ?CHILD(fun_batch_cursor, permanent, 5000),
+           ?CHILD(funnel_billy_session, transient, 5000),
            ?CHILD(fun_smpp_server, transient, 5000)]}}.
