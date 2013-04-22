@@ -80,6 +80,4 @@ default(backend_response_time) -> 1000;
 default(max_stop_time)         -> 120000.
 
 default_addr() ->
-    {ok, Host} = inet:gethostname(),
-    {ok, Addr} = inet:getaddr(Host, inet),
-    Addr.
+	{0,0,0,0}.
