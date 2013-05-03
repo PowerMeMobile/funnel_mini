@@ -103,7 +103,7 @@ handle_cast({write, UUID, Offset}, St) ->
 
 
 handle_info(#timeout{msg = gc}, St) ->
-    log4erl:debug("cursor: performing gc"),
+    %%log4erl:debug("cursor: performing gc"),
     gc(),
     erlang:start_timer(?GC_INTERVAL, self(), gc),
     {noreply, St}.
