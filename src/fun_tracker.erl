@@ -210,6 +210,7 @@ handle_call({open_batch, ConnectionId, CustomerId, UserId, Params}, _From, St) -
         lists:keyfind(validity_period, 1, Params),
         lists:keyfind(data_coding, 1, Params),
         lists:keyfind(short_message, 1, Params),
+        {sar_msg_ref_num, ?KEYFIND3(sar_msg_ref_num, Params, -1)},
         {sar_total_segments, ?KEYFIND3(sar_total_segments, Params, -1)},
         {sar_segment_seqnum, ?KEYFIND3(sar_segment_seqnum, Params, -1)}
     ],
@@ -359,6 +360,7 @@ publish_user_batch(Toke, Chan, BatchId) ->
     end.
 
 encode_batch(Common, Dests, BatchId, GtwId) ->
+	RN = ?gv("sar_msg_ref_num", Common),
     TS = ?gv("sar_total_segments", Common),
     SS = ?gv("sar_segment_seqnum", Common),
     Type = case TS =:= -1 andalso SS =:= -1 of true -> regular; false -> part end,
@@ -390,7 +392,12 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
                   {priority_flag, ?gv("priority_flag", Common)},
                   {esm_class, ?gv("esm_class", Common)},
                   {protocol_id, ?gv("protocol_id", Common)}],
-    ParamsSar = case Type of
+    ParamsSar = case RN =/= -1 of
+					true ->
+						[{sar_msg_ref_num, RN}];
+					false -> []
+				end ++
+				case Type of
                     regular ->
                         ParamsBase;
                     part ->
