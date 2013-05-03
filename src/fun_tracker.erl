@@ -391,16 +391,11 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
                   {priority_flag, ?gv("priority_flag", Common)},
                   {esm_class, ?gv("esm_class", Common)},
                   {protocol_id, ?gv("protocol_id", Common)}],
-    ParamsSar = case RN =/= -1 of
-					true ->
-						[{sar_msg_ref_num, RN}];
-					false -> []
-				end ++
-				case Type of
+    ParamsSar = case Type of
                     regular ->
                         ParamsBase;
                     part ->
-                        [{sar_total_segments, TS}, {sar_segment_seqnum, SS}|ParamsBase]
+                        [{sar_msg_ref_num, RN}, {sar_total_segments, TS}, {sar_segment_seqnum, SS}|ParamsBase]
                 end,
     DataCoding = ?gv("data_coding", Common),
     Params = case DataCoding of
