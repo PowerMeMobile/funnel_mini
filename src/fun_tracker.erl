@@ -221,8 +221,7 @@ handle_call({open_batch, ConnectionId, CustomerId, UserId, Params}, _From, St) -
     toke_drv:insert(St#st.toke, ?TOKYO_BATCH_COMMON(UUID), JSON),
     {reply, UUID, St};
 
-handle_call({add_dest, BatchId, MsgId, RefNum, Dest},
-        _From, St) ->
+handle_call({add_dest, BatchId, MsgId, RefNum, Dest}, _From, St) ->
     {Addr, Ton, Npi} = Dest,
     Entry = list_to_binary(lists:concat([
         MsgId, ";", RefNum, ";", Addr, ";", Ton, ";", Npi, "/"
