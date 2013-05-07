@@ -810,10 +810,12 @@ join_batches(Ids, St) ->
     CommonsDests = fun_tracker:get_partial_batches([ ID || {_, ID} <- USorted ]),
     Commons = [ unparse_common(CommonBin) || {CommonBin, _} <- CommonsDests ],
     Message = join_messages([ ?gv(short_message, C) || C <- Commons ]),
+	%% replaced lists:last/1 with erlang:hd/1 to fix
+	%% http://extranet.powermemobile.com/issues/17458
     Params = ?KEYREPLACE3(short_message, Message,
                           proplists:delete(sar_segment_seqnum,
                                             proplists:delete(sar_total_segments,
-                                                             lists:last(Commons)))),
+                                                             hd(Commons)))),
     Dests = [ unparse_dest(DestBin) || {_, DestBin} <- CommonsDests ],
     Addr = {element(3, hd(Dests)), ?TON_INTERNATIONAL, ?NPI_ISDN},
     MsgId = string:join([ Id || {Id, _, _} <- Dests ], ":"),
