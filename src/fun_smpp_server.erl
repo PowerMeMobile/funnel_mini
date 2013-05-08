@@ -13,7 +13,8 @@
          handle_accept/2,
          handle_bind/2,
          node_terminated/5,
-         connections/0]).
+         connections/0,
+		 notify_backend_connection_up/5]).
 
 %% gen_server exports
 -export([init/1,
@@ -75,6 +76,16 @@ node_terminated(UUID, MsgsReceived, MsgsSent, Errors, Reason) ->
 -spec connections() -> list().
 connections() ->
     gen_server:call(?MODULE, connections, infinity).
+
+-spec notify_backend_connection_up/5 ::
+	(string(), string(), string(), atom(), calendar:datetime()) -> ok.
+notify_backend_connection_up(ConnUUID, CustomerId, UserId, Type, ConnectedAt) ->
+	gen_server:cast(?MODULE, {notify_connection_up,
+									ConnUUID,
+									CustomerId,
+									UserId,
+									Type,
+									ConnectedAt}).
 
 %% -------------------------------------------------------------------------
 %% gen_server callback functions
@@ -215,6 +226,31 @@ handle_call(connections, _From, St) ->
     ),
     {reply, Reply, St}.
 
+handle_cast({notify_connection_up,
+					ConnID,
+					CustomerId,
+					UserId,
+					Type,
+					ConnectedAt}, St) ->
+    ConnectionUpEvent = #'ConnectionUpEvent'{
+        connectionId = ConnID,
+        customerId   = CustomerId,
+        userId       = UserId,
+        type         = Type,
+        connectedAt  = fun_time:utc_str(ConnectedAt),
+        timestamp    = fun_time:utc_str()
+    },
+    {ok, Encoded} =
+        'FunnelAsn':encode('ConnectionUpEvent', ConnectionUpEvent),
+    Payload = list_to_binary(Encoded),
+    RoutingKey = funnel_app:get_env(queue_backend_events),
+    Props = #'P_basic'{
+        content_type = <<"ConnectionUpEvent">>,
+        message_id   = uuid:unparse(uuid:generate())
+    },
+    fun_amqp:basic_publish(St#st.amqp_chan, RoutingKey, Payload, Props),
+	{noreply, St};
+
 handle_cast({node_terminated, UUID, MsgsReceived, MsgsSent, Errors, Reason}, St) ->
     Node = lists:keyfind(UUID, #node.uuid, St#st.nodes),
     log4erl:info(
@@ -345,8 +381,8 @@ allow_another_bind(CustomerId, UserId, Type, Pid, St) ->
 handle_bind_response(Payload, Node, Nodes, St) ->
     {ok, BindResponse} = 'FunnelAsn':decode('BindResponse', Payload),
     #'BindResponse'{result = Result} = BindResponse,
-    #node{addr = Addr, customer_id = CustomerId, user_id = UserId, uuid = ConnUUID,
-          password = Password, type = Type, connected_at = ConnectedAt} = Node,
+    #node{addr = Addr, customer_id = CustomerId, user_id = UserId, uuid = _ConnUUID,
+          password = Password, type = Type, connected_at = _ConnectedAt} = Node,
     ReplyTo = {Node#node.pid, Node#node.bind_ref},
     case Result of
         {customer, Customer} ->
@@ -398,12 +434,6 @@ handle_bind_response(Payload, Node, Nodes, St) ->
                                {default_validity, DefaultValidity},
                                {max_validity, MaxValidity},
                                {billing_type, BillingType}]}),
-            notify_backend_connection_up(St#st.amqp_chan,
-                                         ConnUUID,
-                                         CustomerId,
-                                         UserId,
-                                         Type,
-                                         ConnectedAt),
             {noreply, St#st{nodes = [Node_|Nodes]}};
         {error, Details} ->
             log4erl:warn(
@@ -610,24 +640,24 @@ notify_backend_server_down(Chan) ->
     },
     fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
 
-notify_backend_connection_up(Chan, UUID, CustomerId, UserId, Type, ConnectedAt) ->
-    ConnectionUpEvent = #'ConnectionUpEvent'{
-        connectionId = UUID,
-        customerId   = CustomerId,
-        userId       = UserId,
-        type         = Type,
-        connectedAt  = fun_time:utc_str(ConnectedAt),
-        timestamp    = fun_time:utc_str()
-    },
-    {ok, Encoded} =
-        'FunnelAsn':encode('ConnectionUpEvent', ConnectionUpEvent),
-    Payload = list_to_binary(Encoded),
-    RoutingKey = funnel_app:get_env(queue_backend_events),
-    Props = #'P_basic'{
-        content_type = <<"ConnectionUpEvent">>,
-        message_id   = uuid:unparse(uuid:generate())
-    },
-    fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
+%% notify_backend_connection_up(Chan, UUID, CustomerId, UserId, Type, ConnectedAt) ->
+%%     ConnectionUpEvent = #'ConnectionUpEvent'{
+%%         connectionId = UUID,
+%%         customerId   = CustomerId,
+%%         userId       = UserId,
+%%         type         = Type,
+%%         connectedAt  = fun_time:utc_str(ConnectedAt),
+%%         timestamp    = fun_time:utc_str()
+%%     },
+%%     {ok, Encoded} =
+%%         'FunnelAsn':encode('ConnectionUpEvent', ConnectionUpEvent),
+%%     Payload = list_to_binary(Encoded),
+%%     RoutingKey = funnel_app:get_env(queue_backend_events),
+%%     Props = #'P_basic'{
+%%         content_type = <<"ConnectionUpEvent">>,
+%%         message_id   = uuid:unparse(uuid:generate())
+%%     },
+%%     fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
 
 notify_backend_connection_down(Chan, UUID, CustomerId, UserId, Type,
         ConnectedAt, MsgsReceived, MsgsSent, Errors, Reason) ->
