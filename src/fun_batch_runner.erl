@@ -1,7 +1,7 @@
 -module(fun_batch_runner).
 
 -include_lib("amqp_client/include/amqp_client.hrl").
--include("FunnelAsn.hrl").
+-include_lib("alley_dto/include/FunnelAsn.hrl").
 -include("otp_records.hrl").
 
 -behaviour(gen_server2).

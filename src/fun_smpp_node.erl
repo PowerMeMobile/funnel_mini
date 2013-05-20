@@ -2,9 +2,9 @@
 
 -include_lib("billy_client/include/billy_client.hrl").
 -include_lib("oserl/include/oserl.hrl").
+-include_lib("alley_dto/include/FunnelAsn.hrl").
 -include("otp_records.hrl").
 -include("helpers.hrl").
--include("FunnelAsn.hrl").
 
 -behaviour(gen_server).
 -behaviour(gen_mc_session).

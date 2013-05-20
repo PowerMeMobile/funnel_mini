@@ -1,7 +1,7 @@
 -module(fun_coverage).
 
 -include("types.hrl").
--include("FunnelAsn.hrl").
+-include_lib("alley_dto/include/FunnelAsn.hrl").
 
 -ifdef(TEST).
 -compile(export_all).

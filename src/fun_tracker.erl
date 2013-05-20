@@ -2,7 +2,7 @@
 
 
 -include_lib("amqp_client/include/amqp_client.hrl").
--include("JustAsn.hrl").
+-include_lib("alley_dto/include/JustAsn.hrl").
 -include("helpers.hrl").
 -include("otp_records.hrl").
 

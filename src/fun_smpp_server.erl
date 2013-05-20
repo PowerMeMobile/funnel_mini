@@ -2,8 +2,8 @@
 
 -include_lib("oserl/include/oserl.hrl").
 -include_lib("amqp_client/include/amqp_client.hrl").
+-include_lib("alley_dto/include/FunnelAsn.hrl").
 -include("otp_records.hrl").
--include("FunnelAsn.hrl").
 
 -behaviour(gen_server).
 
