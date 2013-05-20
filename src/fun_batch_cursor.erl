@@ -72,7 +72,7 @@ read(UUID) when is_binary(UUID) ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    log4erl:info("cursor: initializing"),
+    lager:info("cursor: initializing"),
     case mnesia:create_table(cursor,
             [{attributes, record_info(fields, cursor)}, {disc_copies, [node()]}]) of
         {atomic, ok}                        -> ok;
@@ -84,7 +84,7 @@ init([]) ->
 
 
 terminate(Reason, _St) ->
-    log4erl:info("cursor: terminated (~W)", [Reason, 20]).
+    lager:info("cursor: terminated (~p)", [Reason]).
 
 
 handle_call({read, UUID}, _From, St) ->
@@ -103,7 +103,6 @@ handle_cast({write, UUID, Offset}, St) ->
 
 
 handle_info(#timeout{msg = gc}, St) ->
-    %%log4erl:debug("cursor: performing gc"),
     gc(),
     erlang:start_timer(?GC_INTERVAL, self(), gc),
     {noreply, St}.

@@ -85,7 +85,7 @@ slices() ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    log4erl:info("throughput: initializing"),
+    lager:info("throughput: initializing"),
     Totals = ets:new(totals_tab, []),
     ets:insert(Totals, {in,  0}),
     ets:insert(Totals, {out, 0}),
@@ -95,7 +95,7 @@ init([]) ->
 terminate(Reason, St) ->
     ets:delete(St#st.monitors_tab),
     ets:delete(St#st.totals_tab),
-    log4erl:info("throughput: terminated (~W)", [Reason, 20]).
+    lager:info("throughput: terminated (~p)", [Reason]).
 
 
 handle_call({register_connection, ConnectionId, Pid}, _From, St) ->

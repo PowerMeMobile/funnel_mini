@@ -93,7 +93,7 @@ deliver_sm(Node, Params) ->
 
 init(LSock) ->
     process_flag(trap_exit, true),
-    log4erl:debug("node: initializing"),
+    lager:debug("node: initializing"),
     {ok, SMPPLogMgr} = smpp_log_mgr:start_link(),
     pmm_smpp_logger_h:sup_add_to_manager(SMPPLogMgr),
     Timers = ?TIMERS(
@@ -140,7 +140,7 @@ terminate(Reason, St) ->
         {_, BatchId, _, _} <- ets:tab2list(St#st.batch_tab) ],
     ets:delete(St#st.batch_tab),
     ets:delete(St#st.coverage_tab),
-    log4erl:debug("node: terminated (~W)", [Reason, 20]).
+    lager:debug("node: terminated (~p)", [Reason]).
 
 handle_call({handle_accept, Addr}, _From, St) ->
     case fun_smpp_server:handle_accept(self(), Addr) of
@@ -161,7 +161,7 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
     try fun_smpp_server:handle_bind(self(), {St#st.addr, Type,
                                              CustomerId, UserId, Password}) of
         {ok, Params, Customer} ->
-            log4erl:debug(
+            lager:debug(
                 "node: bound (addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s)",
                 [St#st.addr, CustomerId, UserId, Password, Type]
             ),
@@ -217,7 +217,7 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
             {reply, {error, Error}, St}
     catch
         _:{timeout, _} ->
-            log4erl:error(
+            lager:error(
                 "node: bind request timed out "
                 "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s)",
                 [St#st.addr, CustomerId, UserId, Password, Type]
@@ -258,19 +258,19 @@ deliver_from_queue(St) ->
     end.
 
 handle_cast({handle_operation, submit_sm, SeqNum, Params}, St) ->
-    log4erl:debug("node: got submit_sm request (~p)", [Params]),
+    lager:debug("node: got submit_sm request (~p)", [Params]),
     case handle_submit(SeqNum, Params, St) of
         ok ->
             {noreply, St};
         {error, Error, Details} ->
             gen_mc_session:reply(St#st.mc_session, {SeqNum, {error, Error}}),
-            log4erl:error("node: ~s", [Details]),
+            lager:error("node: ~s", [Details]),
             fun_errors:record(St#st.uuid, Error),
             {noreply, St}
     end;
 
 handle_cast({handle_operation, Cmd, SeqNum, _Params}, St) ->
-    log4erl:warn("node: got unsupported request (~s)", [Cmd]),
+    lager:warning("node: got unsupported request (~s)", [Cmd]),
     fun_errors:record(St#st.uuid, ?ESME_RPROHIBITED),
     Reply = {error, ?ESME_RPROHIBITED},
     gen_mc_session:reply(St#st.mc_session, {SeqNum, Reply}),
@@ -298,11 +298,11 @@ handle_cast({handle_resp, Resp, Ref}, St) ->
     end;
 
 handle_cast(stop, St) ->
-    log4erl:debug("node: stopping"),
+    lager:debug("node: stopping"),
     {stop, normal, St};
 
 handle_cast(unbind, St) ->
-    log4erl:debug("node: stopping"),
+    lager:debug("node: stopping"),
     if
         is_pid(St#st.batch_runner) ->
             fun_batch_runner:stop(St#st.batch_runner),
@@ -594,7 +594,7 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
                     {error, ?ESME_RINVEXPIRY, "expired validity_period"};
                 Delta > St#st.max_validity andalso DoCutoff ->
                     NewVP = fmt_validity(St#st.max_validity),
-                    log4erl:warn(
+                    lager:warn(
                         "node: validity period cut off "
                         "(customer: ~s, user: ~s, orig vp: ~s, new vp: ~s)",
                         [St#st.customer_id, St#st.user_id, VP, NewVP]
@@ -611,10 +611,10 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
 step(billy_reserve_or_accept, {SeqNum, Params}, St) ->
 	case St#st.billing_type of
 		postpaid ->
-			log4erl:debug("node: send without billing"),
+			lager:debug("node: send without billing"),
 			step(accept, {SeqNum, Params}, St);
 		prepaid ->
-			log4erl:debug("node: send with billing"),
+			lager:debug("node: send with billing"),
 		    step(billy_reserve, {SeqNum, Params}, St)
 	end;
 

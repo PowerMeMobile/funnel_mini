@@ -38,7 +38,7 @@ stop(Pid) ->
 
 init(Params) ->
     process_flag(trap_exit, true),
-    log4erl:debug("runner: initializing"),
+    lager:debug("runner: initializing"),
     ConnId = proplists:get_value(connection_id, Params),
     Chan = fun_amqp_pool:open_channel(),
     monitor(process, Chan),
@@ -52,7 +52,7 @@ init(Params) ->
              version = proplists:get_value(version, Params)}}.
 
 terminate(Reason, St) ->
-    log4erl:debug("runner: terminated (~W)", [Reason, 20]),
+    lager:debug("runner: terminated (~p)", [Reason]),
     fun_amqp_pool:close_channel(St#st.amqp_chan).
 
 handle_call(Request, _From, St) ->
@@ -71,7 +71,7 @@ handle_info({#'basic.deliver'{delivery_tag = Tag},
             {stop, error, St}
     catch
         _:Reason ->
-            log4erl:error("runner: rejected a batch (~W)", [Reason, 20]),
+            lager:error("runner: rejected a batch (~p)", [Reason]),
             fun_amqp:basic_reject(St#st.amqp_chan, Tag, false),
             {noreply, St}
     end;
@@ -116,7 +116,7 @@ handle_basic_deliver(Payload, Props, Tag, St) ->
                     'FunnelAsn':receipt_batch_messages(Gunzipped),
                 {Str, Its}
         end,
-    log4erl:debug("got batch (type: ~s, id: ~s)", [Type, ID]),
+    lager:debug("got batch (type: ~s, id: ~s)", [Type, ID]),
     MsgId   = Props#'P_basic'.message_id,
     ReplyTo = Props#'P_basic'.reply_to,
     Done = fun_batch_cursor:read(ID),

@@ -30,23 +30,22 @@ set_debug_level() ->
 
 start(normal, _StartArgs) ->
     ok = funnel_conf:init(),
-    ok = setup_logger(),
     ok = load_mibs(),
-    log4erl:info("funnel: starting up"),
+    lager:info("funnel: starting up"),
     funnel_mib:send_coldstart_notification(),
     funnel_sup:start_link().
 
 %% This function is called when ?APP application is about to be stopped,
 %% before shutting down the processes of the application.
 prep_stop(St) ->
-    log4erl:info("funnel: stopping"),
+    lager:info("funnel: stopping"),
     fun_smpp_server:stop(),
     St.
 
 %% Perform necessary cleaning up *after* ?APP application has stopped.
 stop(_St) ->
     unload_mibs(),
-    log4erl:info("funnel: stopped").
+    lager:info("funnel: stopped").
 
 config_change(_Changed, _New, _Removed) ->
     ok.
@@ -54,24 +53,6 @@ config_change(_Changed, _New, _Removed) ->
 %% -------------------------------------------------------------------------
 %% private functions
 %% -------------------------------------------------------------------------
-
-setup_logger() ->
-    FileAppenderSpec = {
-        funnel_conf:get(file_log_dir),          % log dir.
-        "funnel",                               % log file name.
-        {size, funnel_conf:get(file_log_size)}, % individual log size in bytes.
-        funnel_conf:get(file_log_rotations),    % number of rotations.
-        "log",                                  % suffix.
-        funnel_conf:get(file_log_level),        % minimum log level to log.
-        "%j %T [%L] %l%n"                       % format.
-    },
-    log4erl:add_file_appender(default_logger_file, FileAppenderSpec),
-    ConsoleAppenderSpec = {
-        funnel_conf:get(console_log_level), % minimum log level to log.
-        "%j %T [%L] %l%n"                   % format.
-    },
-    log4erl:add_console_appender(default_logger_console, ConsoleAppenderSpec),
-    ok.
 
 load_mibs() ->
     ok = otp_mib:load(snmp_master_agent),

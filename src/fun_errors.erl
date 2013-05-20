@@ -66,7 +66,7 @@ lookup(ConnectionId) ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    log4erl:info("errors: initializing"),
+    lager:info("errors: initializing"),
     {ok, #st{
         errors_tab   = ets:new(errors_tab, []),
         monitors_tab = ets:new(monitors_tab, [])
@@ -76,7 +76,7 @@ init([]) ->
 terminate(Reason, St) ->
     ets:delete(St#st.monitors_tab),
     ets:delete(St#st.errors_tab),
-    log4erl:info("errors: terminated (~W)", [Reason, 20]).
+    lager:info("errors: terminated (~p)", [Reason]).
 
 
 handle_call({register_connection, ConnectionId, Pid}, _From, St) ->

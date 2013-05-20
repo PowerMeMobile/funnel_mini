@@ -44,7 +44,7 @@ set(Key, Value) ->
     mnesia:transaction(
         fun() -> mnesia:write(#funnel_conf{key = Key, value = Value}) end
     ),
-    log4erl:info("funnel: setting updated [~p: ~p]", [Key, Value]),
+    lager:info("funnel: setting updated [~p: ~p]", [Key, Value]),
     ok.
 
 %% -------------------------------------------------------------------------

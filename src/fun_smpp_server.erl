@@ -95,7 +95,7 @@ init([]) ->
     process_flag(trap_exit, true),
     Addr = funnel_conf:get(smpp_server_addr),
     Port = funnel_conf:get(smpp_server_port),
-    log4erl:info("server: initializing (addr: ~s, port: ~w)",
+    lager:info("server: initializing (addr: ~s, port: ~w)",
         [inet_parse:ntoa(Addr), Port]),
     case smpp_session:listen([{addr, Addr}, {port, Port}]) of
         {ok, LSock} ->
@@ -114,7 +114,7 @@ init([]) ->
                 smpp_node   = Node
             }};
         {error, Reason} ->
-            log4erl:error("server: failed to start (~w)", [Reason]),
+            lager:error("server: failed to start (~p)", [Reason]),
             {stop, Reason}
     end.
 
@@ -124,10 +124,10 @@ terminate(Reason, St) ->
     fun_smpp_node:stop(St#st.smpp_node),
     timer:sleep(100),
     gen_tcp:close(St#st.lsock),
-    log4erl:info("server: terminated (~W)", [Reason, 20]).
+    lager:info("server: terminated (~p)", [Reason]).
 
 handle_call(stop, From, St) ->
-    log4erl:info("server: stopping"),
+    lager:info("server: stopping"),
     erlang:start_timer(funnel_conf:get(max_stop_time), self(), stop),
     Nodes = bound_nodes(St#st.nodes),
     [ fun_smpp_node:unbind(Pid) || #node{pid = Pid} <- Nodes ],
@@ -142,14 +142,14 @@ handle_call({handle_accept, Pid, Addr}, _From, St) ->
         St#st.is_stopping ->
             {reply, false, St};
         length(St#st.nodes) >= MaxConns ->
-            log4erl:warn(
+            lager:warning(
                 "server: rejected connection (ip: ~s) (too many connections)",
                 [Addr]
             ),
             {reply, false, St};
         true ->
             UUID = binary_to_list(uuid:unparse(uuid:generate())),
-            log4erl:info("server: accepted connection (ip: ~s, uuid: ~s)", [Addr, UUID]),
+            lager:info("server: accepted connection (ip: ~s, uuid: ~s)", [Addr, UUID]),
             {ok, Node} = fun_smpp_node:start_link(St#st.lsock),
             ConnectedAt = calendar:local_time(),
             {reply, {true, UUID, ConnectedAt}, St#st{
@@ -169,7 +169,7 @@ handle_call({handle_accept, Pid, Addr}, _From, St) ->
 
 handle_call({handle_bind, _Pid, {Addr, Type, CustomerId, UserId, Password}},
         _From, #st{is_stopping = true} = St) ->
-    log4erl:warn(
+    lager:warning(
         "server: denied bind "
         "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s) (~s)",
         [Addr, CustomerId, UserId, Password, Type, "server is stopping"]
@@ -180,7 +180,7 @@ handle_call({handle_bind, Pid, {Addr, Type, CustomerId, UserId, Password}},
             {Pid, Ref}, St) ->
     case allow_another_bind(CustomerId, UserId, Type, Pid, St) of
         true ->
-            log4erl:info(
+            lager:info(
                 "server: requesting backend auth "
                 "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s)",
                 [Addr, CustomerId, UserId, Password, Type]
@@ -202,7 +202,7 @@ handle_call({handle_bind, Pid, {Addr, Type, CustomerId, UserId, Password}},
             },
             {noreply, St#st{nodes = [Node_|Nodes]}};
         false ->
-            log4erl:warn(
+            lager:warning(
                 "server: denied bind "
                 "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s) (~s)",
                 [Addr, CustomerId, UserId, Password, Type, "already bound"]
@@ -253,7 +253,7 @@ handle_cast({notify_connection_up,
 
 handle_cast({node_terminated, UUID, MsgsReceived, MsgsSent, Errors, Reason}, St) ->
     Node = lists:keyfind(UUID, #node.uuid, St#st.nodes),
-    log4erl:info(
+    lager:info(
         "server: connection terminated "
         "(ip: ~s, uuid: ~s, customer: ~s, user: ~s, reason: ~s)",
         [Node#node.addr, UUID, Node#node.customer_id, Node#node.user_id, Reason]
@@ -287,7 +287,7 @@ handle_info(#'EXIT'{pid = Pid}, St) ->
     Node = lists:keyfind(Pid, #node.pid, St#st.nodes),
     if
         Node =/= false andalso Node#node.state =:= accepted ->
-            log4erl:info(
+            lager:info(
                 "server: connection terminated (ip: ~s, uuid: ~s), not bound",
                 [Node#node.addr, Node#node.uuid]
             );
@@ -313,14 +313,14 @@ handle_info(#timeout{msg = stop}, St) ->
 handle_info(#timeout{msg = {handle_bind, CustomerId, UserId, Type, Password}}, St) ->
     case node_by_details(CustomerId, UserId, Type, Password, St) of
         {value, #node{state = accepted} = Node, Nodes} ->
-            log4erl:warn(
+            lager:warning(
                 "server: failed to receive bind response "
                 "(customer: ~s, user: ~s, password: ~s, type: ~s), trying cache",
                 [CustomerId, UserId, Password, Type]
             ),
             case temp_fun_cache:fetch({CustomerId, UserId, Type, Password}) of
                 not_found ->
-                    log4erl:error(
+                    lager:error(
                         "server: failed to receive bind response "
                         "(customer: ~s, user: ~s, password: ~s, type: ~s), cache is empty",
                         [CustomerId, UserId, Password, Type]
@@ -397,7 +397,7 @@ handle_bind_response(Payload, Node, Nodes, St) ->
                         asn1_NOVALUE -> unlimited;
                         _            -> Rps
                     end,
-            log4erl:info(
+            lager:info(
                 "server: granted bind "
                 "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s, rps: ~w, billing: ~w)",
                 [Addr, CustomerId, UserId, Password, Type, LogRps, BillingType]
@@ -436,7 +436,7 @@ handle_bind_response(Payload, Node, Nodes, St) ->
                                {billing_type, BillingType}]}),
             {noreply, St#st{nodes = [Node_|Nodes]}};
         {error, Details} ->
-            log4erl:warn(
+            lager:warning(
                 "server: denied bind "
                 "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s) (~s)",
                 [Addr, CustomerId, UserId, Password, Type, Details]
@@ -493,7 +493,7 @@ handle_basic_deliver(<<"DisconnectRequest">>, Payload, Props, St) ->
         fun(#node{uuid = UUID, pid = Pid, type = Type, password = Password}) ->
                 fun_smpp_node:unbind(Pid),
                 temp_fun_cache:delete({CustomerId, UserId, Type, Password}),
-                log4erl:info(
+                lager:info(
                     "server: unbinding a client "
                     "(uuid: ~s, customer: ~s, user: ~s)",
                     [UUID, CustomerId, UserId]
@@ -513,7 +513,7 @@ handle_basic_deliver(<<"DisconnectRequest">>, Payload, Props, St) ->
     {noreply, St};
 
 handle_basic_deliver(<<"ConnectionsRequest">>, _Payload, Props, St) ->
-    log4erl:debug("server: got connections request"),
+    lager:debug("server: got connections request"),
     Connections =
         [
             try
@@ -554,7 +554,7 @@ handle_basic_deliver(<<"ConnectionsRequest">>, _Payload, Props, St) ->
     {noreply, St};
 
 handle_basic_deliver(<<"ThroughputRequest">>, _Payload, Props, St) ->
-    log4erl:debug("server: got throughput request"),
+    lager:debug("server: got throughput request"),
     Slices = lists:map(
         fun({PeriodStart, Counters}) ->
                 #'Slice'{

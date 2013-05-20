@@ -188,7 +188,7 @@ handle_cast({handle_resp, Resp, Ref}, St) ->
 
 
 handle_cast({handle_deliver_sm, SeqNum, Params}, St) ->
-    log4erl:debug("test client: got deliver_sm (params: ~p~n)", [Params]),
+    lager:debug("test client: got deliver_sm (params: ~p)", [Params]),
     Reply = {ok, []},
     gen_esme_session:reply(St#st.esme_session, {SeqNum, Reply}),
     {noreply, St};

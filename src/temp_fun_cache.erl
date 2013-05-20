@@ -42,13 +42,13 @@ delete(Key) ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    log4erl:info("cache: initializing"),
+    lager:info("cache: initializing"),
     {ok, cache} = dets:open_file(cache, [{file, "data/cache.dets"}]),
     {ok, #st{}}.
 
 terminate(Reason, _St) ->
     dets:close(cache),
-    log4erl:info("cache: terminated (~W)", [Reason, 20]).
+    lager:info("cache: terminated (~w)", [Reason]).
 
 handle_call({store, Key, Value}, _From, St) ->
     ok = dets:insert(cache, {Key, Value}),

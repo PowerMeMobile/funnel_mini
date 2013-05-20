@@ -41,13 +41,13 @@ close_channel(Chan) ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    log4erl:info("amqp pool: initializing"),
+    lager:info("amqp pool: initializing"),
     case fun_amqp:connection_start() of
         {ok, Conn} ->
             link(Conn),
             {ok, #st{amqp_conn = Conn, amqp_chans = ets:new(amqp_chans, [])}};
         {error, Reason} ->
-            log4erl:error("amqp pool: failed to start (~w)", [Reason]),
+            lager:error("amqp pool: failed to start (~p)", [Reason]),
             {stop, Reason}
     end.
 
@@ -56,7 +56,7 @@ terminate(Reason, St) ->
         {_Ref, Pid} <- ets:tab2list(St#st.amqp_chans) ],
     ets:delete(St#st.amqp_chans),
     fun_amqp:connection_close(St#st.amqp_conn),
-    log4erl:info("amqp pool: terminated (~W)", [Reason, 20]).
+    lager:info("amqp pool: terminated (~p)", [Reason]).
 
 handle_call(open_channel, {Pid, _Tag}, St) ->
     case fun_amqp:channel_open(St#st.amqp_conn) of

@@ -5,7 +5,6 @@
                   stdlib,
                   snmp,
                   os_mon,
-                  log4erl, % FIXME
                   common_lib,
                   mnesia,
                   amqp_client,
