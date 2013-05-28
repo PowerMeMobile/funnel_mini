@@ -3,6 +3,7 @@
 
 -include_lib("amqp_client/include/amqp_client.hrl").
 -include_lib("alley_dto/include/JustAsn.hrl").
+-include_lib("queue_fabric/include/queue_fabric.hrl").
 -include("helpers.hrl").
 -include("otp_records.hrl").
 
@@ -121,8 +122,7 @@ init([]) ->
         ok ->
             Chan = fun_amqp_pool:open_channel(),
             erlang:monitor(process, Chan),
-            Batches = funnel_app:get_env(queue_backend_batches),
-            ok = fun_amqp:queue_declare(Chan, Batches, true, false, false),
+            ok = fun_amqp:queue_declare(Chan, ?FUNNEL_BATCHES_Q, true, false, false),
             ok = fun_amqp:tx_select(Chan),
             close_all_batches(Toke, Chan),
             erlang:start_timer(?CLOSE_BATCHES_INTERVAL, self(), close_batches),
@@ -349,10 +349,8 @@ publish_user_batch(Toke, Chan, BatchId) ->
                 headers = [ encode_header(H) || H <- Headers ]
             },
             Payload = encode_batch(Common, Dests, BatchId, GtwId),
-            BatchQueue = funnel_app:get_env(queue_backend_batches),
-            GtwPattern = funnel_app:get_env(queue_gateway_pattern),
-            GtwQueue = re:replace(GtwPattern, "%id%", GtwId, [{return, binary}]),
-            ok = fun_amqp:basic_publish(Chan, BatchQueue, Payload, Basic),
+			GtwQueue = <<?JUST_GTW_Q_PREFIX/binary, $., (list_to_binary(GtwId))/binary>>,
+            ok = fun_amqp:basic_publish(Chan, ?FUNNEL_BATCHES_Q, Payload, Basic),
             ok = fun_amqp:basic_publish(Chan, GtwQueue, Payload, Basic);
         true ->
             ok

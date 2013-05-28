@@ -2,6 +2,7 @@
 
 -include_lib("amqp_client/include/amqp_client.hrl").
 -include_lib("alley_dto/include/FunnelAsn.hrl").
+-include_lib("queue_fabric/include/queue_fabric.hrl").
 -include("otp_records.hrl").
 
 -behaviour(gen_server2).
@@ -43,8 +44,7 @@ init(Params) ->
     Chan = fun_amqp_pool:open_channel(),
     monitor(process, Chan),
     ok = fun_amqp:basic_qos(Chan, 1),
-    Prefix = funnel_app:get_env(queue_nodes_prefix),
-    Queue = list_to_binary([Prefix, lists:concat([".", string:to_lower(ConnId)])]),
+	Queue = <<?FUNNEL_NODE_Q_PREFIX/binary, $., (list_to_binary(string:to_lower(ConnId)))/binary>>,
     ok = fun_amqp:queue_declare(Chan, Queue, false, true, true),
     {ok, _CTag} = fun_amqp:basic_consume(Chan, Queue, false),
     {ok, #st{amqp_chan = Chan,

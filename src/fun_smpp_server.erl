@@ -3,6 +3,7 @@
 -include_lib("oserl/include/oserl.hrl").
 -include_lib("amqp_client/include/amqp_client.hrl").
 -include_lib("alley_dto/include/FunnelAsn.hrl").
+-include_lib("queue_fabric/include/queue_fabric.hrl").
 -include("otp_records.hrl").
 
 -behaviour(gen_server).
@@ -101,11 +102,9 @@ init([]) ->
         {ok, LSock} ->
             Chan = fun_amqp_pool:open_channel(),
             erlang:monitor(process, Chan),
-            Auth = funnel_app:get_env(queue_backend_auth),
-            fun_amqp:queue_declare(Chan, Auth, true, false, false),
-            Control = funnel_app:get_env(queue_server_control),
-            ok = fun_amqp:queue_declare(Chan, Control, false, true, true),
-            {ok, _CTag} = fun_amqp:basic_consume(Chan, Control, true),
+            fun_amqp:queue_declare(Chan, ?FUNNEL_AUTH_Q, true, false, false),
+            ok = fun_amqp:queue_declare(Chan, ?FUNNEL_CONTROL_Q, false, true, true),
+            {ok, _CTag} = fun_amqp:basic_consume(Chan, ?FUNNEL_CONTROL_Q, true),
             {ok, Node} = fun_smpp_node:start_link(LSock),
             catch(notify_backend_server_up(Chan)),
             {ok, #st{
@@ -243,12 +242,11 @@ handle_cast({notify_connection_up,
     {ok, Encoded} =
         'FunnelAsn':encode('ConnectionUpEvent', ConnectionUpEvent),
     Payload = list_to_binary(Encoded),
-    RoutingKey = funnel_app:get_env(queue_backend_events),
     Props = #'P_basic'{
         content_type = <<"ConnectionUpEvent">>,
         message_id   = uuid:unparse(uuid:generate())
     },
-    fun_amqp:basic_publish(St#st.amqp_chan, RoutingKey, Payload, Props),
+    fun_amqp:basic_publish(St#st.amqp_chan, ?FUNNEL_EVENTS_Q, Payload, Props),
 	{noreply, St};
 
 handle_cast({node_terminated, UUID, MsgsReceived, MsgsSent, Errors, Reason}, St) ->
@@ -605,14 +603,13 @@ request_backend_auth(Chan, UUID, Addr, CustomerId, UserId, Password, Type, Timeo
     },
     {ok, Encoded} = 'FunnelAsn':encode('BindRequest', BindRequest),
     Payload = list_to_binary(Encoded),
-    RoutingKey = funnel_app:get_env(queue_backend_auth),
     Props = #'P_basic'{
         content_type = <<"BindRequest">>,
         delivery_mode = 2,
         message_id   = uuid:unparse(uuid:generate()),
-        reply_to     = funnel_app:get_env(queue_server_control)
+        reply_to     = ?FUNNEL_CONTROL_Q
     },
-    fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
+    fun_amqp:basic_publish(Chan, ?FUNNEL_AUTH_Q, Payload, Props).
 
 notify_backend_server_up(Chan) ->
     ServerUpEvent = #'ServerUpEvent'{
@@ -620,12 +617,11 @@ notify_backend_server_up(Chan) ->
     },
     {ok, Encoded} = 'FunnelAsn':encode('ServerUpEvent', ServerUpEvent),
     Payload = list_to_binary(Encoded),
-    RoutingKey = funnel_app:get_env(queue_backend_events),
     Props = #'P_basic'{
         content_type = <<"ServerUpEvent">>,
         message_id   = uuid:unparse(uuid:generate())
     },
-    fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
+    fun_amqp:basic_publish(Chan, ?FUNNEL_EVENTS_Q, Payload, Props).
 
 notify_backend_server_down(Chan) ->
     ServerDownEvent = #'ServerDownEvent'{
@@ -633,31 +629,11 @@ notify_backend_server_down(Chan) ->
     },
     {ok, Encoded} = 'FunnelAsn':encode('ServerDownEvent', ServerDownEvent),
     Payload = list_to_binary(Encoded),
-    RoutingKey = funnel_app:get_env(queue_backend_events),
     Props = #'P_basic'{
         content_type = <<"ServerDownEvent">>,
         message_id   = uuid:unparse(uuid:generate())
     },
-    fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
-
-%% notify_backend_connection_up(Chan, UUID, CustomerId, UserId, Type, ConnectedAt) ->
-%%     ConnectionUpEvent = #'ConnectionUpEvent'{
-%%         connectionId = UUID,
-%%         customerId   = CustomerId,
-%%         userId       = UserId,
-%%         type         = Type,
-%%         connectedAt  = fun_time:utc_str(ConnectedAt),
-%%         timestamp    = fun_time:utc_str()
-%%     },
-%%     {ok, Encoded} =
-%%         'FunnelAsn':encode('ConnectionUpEvent', ConnectionUpEvent),
-%%     Payload = list_to_binary(Encoded),
-%%     RoutingKey = funnel_app:get_env(queue_backend_events),
-%%     Props = #'P_basic'{
-%%         content_type = <<"ConnectionUpEvent">>,
-%%         message_id   = uuid:unparse(uuid:generate())
-%%     },
-%%     fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
+    fun_amqp:basic_publish(Chan, ?FUNNEL_EVENTS_Q, Payload, Props).
 
 notify_backend_connection_down(Chan, UUID, CustomerId, UserId, Type,
         ConnectedAt, MsgsReceived, MsgsSent, Errors, Reason) ->
@@ -681,9 +657,8 @@ notify_backend_connection_down(Chan, UUID, CustomerId, UserId, Type,
     {ok, Encoded} =
         'FunnelAsn':encode('ConnectionDownEvent', ConnectionDownEvent),
     Payload = list_to_binary(Encoded),
-    RoutingKey = funnel_app:get_env(queue_backend_events),
     Props = #'P_basic'{
         content_type = <<"ConnectionDownEvent">>,
         message_id   = uuid:unparse(uuid:generate())
     },
-    fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
+    fun_amqp:basic_publish(Chan, ?FUNNEL_EVENTS_Q, Payload, Props).
