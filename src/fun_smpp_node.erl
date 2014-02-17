@@ -1,17 +1,7 @@
 -module(fun_smpp_node).
 
--include_lib("billy_client/include/billy_client.hrl").
--include_lib("oserl/include/oserl.hrl").
--include_lib("alley_dto/include/FunnelAsn.hrl").
--include("otp_records.hrl").
--include("helpers.hrl").
-
 -behaviour(gen_server).
 -behaviour(gen_mc_session).
-
--ifdef(TEST).
--compile(export_all).
--endif.
 
 %% client exports
 -export([start_link/1,
@@ -35,6 +25,19 @@
          handle_operation/2,
          handle_resp/3,
          handle_unbind/2]).
+
+-include("otp_records.hrl").
+-include("helpers.hrl").
+-include_lib("oserl/include/oserl.hrl").
+-include_lib("alley_dto/include/FunnelAsn.hrl").
+
+-ifdef(POWER_ALLEY).
+-include_lib("billy_client/include/billy_client.hrl").
+-endif.
+
+-ifdef(TEST).
+-compile(export_all).
+-endif.
 
 -define(CLOSE_BATCHES_INTERVAL, 100).
 
@@ -619,20 +622,7 @@ step(billy_reserve_or_accept, {SeqNum, Params}, St) ->
 	end;
 
 step(billy_reserve, {SeqNum, Params}, St) ->
-    {ok, SessionId} = funnel_billy_session:get_session_id(),
-    case billy_client:reserve(SessionId, ?CLIENT_TYPE_FUNNEL,
-            list_to_binary(St#st.customer_uuid), list_to_binary(St#st.user_id),
-            ?SERVICE_TYPE_SMS_ON, 1) of
-        {accepted, TransactionId} ->
-            Result = step(accept, {SeqNum, Params}, St),
-            case Result of
-                ok            -> billy_client:commit(TransactionId);
-                {error, _, _} -> billy_client:rollback(TransactionId)
-            end,
-            Result;
-        {rejected, Reason} ->
-            {error, ?ESME_RSUBMITFAIL, io_lib:format("rejected by billy with: ~p", [Reason])}
-    end;
+    billy_reserve({SeqNum, Params}, St);
 
 step(accept, {SeqNum, Params}, St) ->
     case ?gv(sar_msg_ref_num, Params) of
@@ -710,6 +700,27 @@ step(add_dest, {SeqNum, Params, FP, BatchId, Size}, St) ->
 %% -------------------------------------------------------------------------
 %% private functions
 %% -------------------------------------------------------------------------
+
+-ifdef(POWER_ALLEY).
+billy_reserve({SeqNum, Params}, St) ->
+    {ok, SessionId} = funnel_billy_session:get_session_id(),
+    case billy_client:reserve(SessionId, ?CLIENT_TYPE_FUNNEL,
+            list_to_binary(St#st.customer_uuid), list_to_binary(St#st.user_id),
+            ?SERVICE_TYPE_SMS_ON, 1) of
+        {accepted, TransactionId} ->
+            Result = step(accept, {SeqNum, Params}, St),
+            case Result of
+                ok            -> billy_client:commit(TransactionId);
+                {error, _, _} -> billy_client:rollback(TransactionId)
+            end,
+            Result;
+        {rejected, Reason} ->
+            {error, ?ESME_RSUBMITFAIL, io_lib:format("rejected by billy with: ~p", [Reason])}
+    end.
+-else.
+billy_reserve({_SeqNum, _Params}, _St) ->
+    {error, ?ESME_RSUBMITFAIL, io_lib:format("prepaid is not supported", [])}.
+-endif.
 
 reply(Pid, Reply) ->
     Pid ! {smpp_node_reply, Reply}.

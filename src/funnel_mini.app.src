@@ -1,14 +1,16 @@
-{application, funnel_mini,
- [{description, "Funnel SMPP Server - mini version"},
-  {vsn, "0.0.0"},
-  {applications, [kernel,
-                  stdlib,
-                  snmp,
-                  os_mon,
-                  common_lib,
-                  mnesia,
-                  amqp_client,
-                  gproc,
-                  lager,
-                  billy_client]},
-  {mod, {funnel_app, []}}]}.
+{application, funnel_mini, [
+    {description, "Funnel SMPP Server - mini version"},
+    {vsn, "0.0.0"},
+    {applications, [
+        kernel,
+        stdlib,
+        snmp,
+        os_mon,
+        common_lib,
+        mnesia,
+        amqp_client,
+        gproc,
+        lager
+    ]},
+    {mod, {funnel_app, []}}
+]}.
