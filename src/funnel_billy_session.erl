@@ -45,11 +45,6 @@ init([]) ->
 			{ok, #st{}}
     end.
 
-terminate(_Reason, #st{session_id = undefined}) ->
-    ok;
-terminate(_Reason, #st{session_id = SessionId}) ->
-    billy_client:stop_session(SessionId).
-
 handle_call(get_session_id, _From, #st{session_id = undefined} = St) ->
     % return the error and timeout instantly.
     {reply, {error, no_session}, St, 0};
@@ -67,10 +62,17 @@ handle_cast(Request, St) ->
     {stop, {unexpected_cast, Request}, St}.
 
 handle_info(timeout, St) ->
+	%?log_info("Billy session timeout. Trying to reconnect...", []),
     {stop, no_session, St};
 
 handle_info(Info, St) ->
     {stop, {unexpected_info, Info}, St}.
+
+terminate(_Reason, #st{session_id = undefined}) ->
+    ok;
+
+terminate(_Reason, #st{session_id = SessionId}) ->
+    billy_client:stop_session(SessionId).
 
 code_change(_OldVsn, St, _Extra) ->
     {ok, St}.
