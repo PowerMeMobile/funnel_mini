@@ -52,7 +52,7 @@
              default_provider_id :: string(),
              default_validity :: string(),
              max_validity     :: pos_integer(),
-             billing_type     :: prepaid | postpaid,
+             pay_type         :: prepaid | postpaid,
              batch_tab        :: ets:tid(),
              parts_tab        :: ets:tid(),
              coverage_tab     :: ets:tid(),
@@ -213,7 +213,7 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                    default_provider_id = ?gv(default_provider_id, Customer),
                    default_validity = ?gv(default_validity, Customer),
                    max_validity = ?gv(max_validity, Customer),
-                   billing_type = ?gv(billing_type, Customer)
+                   pay_type = ?gv(pay_type, Customer)
               }};
         {error, Error} ->
             fun_errors:record(St#st.uuid, Error),
@@ -612,14 +612,14 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
     end;
 
 step(billy_reserve_or_accept, {SeqNum, Params}, St) ->
-	case St#st.billing_type of
-		postpaid ->
-			lager:debug("node: send without billing"),
-			step(accept, {SeqNum, Params}, St);
-		prepaid ->
-			lager:debug("node: send with billing"),
-		    step(billy_reserve, {SeqNum, Params}, St)
-	end;
+    case St#st.pay_type of
+        postpaid ->
+            lager:debug("node: send without billing"),
+            step(accept, {SeqNum, Params}, St);
+        prepaid ->
+            lager:debug("node: send with billing"),
+            step(billy_reserve, {SeqNum, Params}, St)
+    end;
 
 step(billy_reserve, {SeqNum, Params}, St) ->
     billy_reserve({SeqNum, Params}, St);
