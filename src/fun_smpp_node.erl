@@ -802,8 +802,8 @@ open_batch(Params, St) ->
             Extended = [{customer_uuid, St#st.customer_uuid},
                         {no_retry, St#st.no_retry},
                         {priority, St#st.priority},
-                        {gateway_id, P#'Provider'.gateway},
-                        {bulk_gateway_id, P#'Provider'.bulkGateway}|Encoded],
+                        {gateway_id, P#'Provider'.gatewayId},
+                        {bulk_gateway_id, P#'Provider'.bulkGatewayId}|Encoded],
             fun_tracker:open_batch(St#st.uuid, St#st.customer_id,
                                    St#st.user_id, Extended)
     catch
