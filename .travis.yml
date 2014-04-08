@@ -1,0 +1,15 @@
+language: erlang
+script: "make simple-test"
+otp_release:
+  - R15B03
+branches:
+  only:
+    - master
+    - develop
+    - dk_mmwl_coverage
+notifications:
+  email:
+    - d.klionsky@dev.powermemobile.com
+before_install:
+ - sudo apt-get update -qq
+ - sudo apt-get install -qq uuid-dev libtokyocabinet-dev
