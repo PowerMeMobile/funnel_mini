@@ -51,7 +51,7 @@ prefixes(Digits, PrefixLens) ->
 
 flatten_networks(Networks) ->
     lists:flatmap(fun(#'Network'{id = Id, countryCode = Code,
-                                 numbersLen = NumLen, prefixes = Prefixes,
+                                 numberLen = NumLen, prefixes = Prefixes,
                                  providerId = Provider}) ->
                       [ {Code ++ P, NumLen, Id, Provider} || P <- Prefixes ]
                   end,
