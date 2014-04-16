@@ -36,7 +36,8 @@
          handle_operation/2,
          handle_enquire_link/2,
          handle_unbind/2,
-         handle_closed/2]).
+         handle_closed/2,
+         handle_timeout/3]).
 
 
 -record(st, {esme_session :: pid(),
@@ -259,3 +260,6 @@ handle_unbind(Client, _Pdu) ->
 %% Notify Client of the Reason before stopping the session.
 handle_closed(Client, Reason) ->
     gen_server:cast(Client, {handle_closed, Reason}).
+
+handle_timeout(_Client, _SeqNum, _Ref) ->
+    ok.
