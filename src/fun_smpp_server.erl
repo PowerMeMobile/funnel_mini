@@ -102,7 +102,7 @@ init([]) ->
             Chan = fun_amqp_pool:open_channel(),
             erlang:monitor(process, Chan),
             Auth = funnel_app:get_env(queue_backend_auth),
-            fun_amqp:queue_declare(Chan, Auth, true, false, false),
+            fun_amqp:queue_declare(Chan, Auth, false, false, false),
             Control = funnel_app:get_env(queue_server_control),
             ok = fun_amqp:queue_declare(Chan, Control, false, true, true),
             {ok, _CTag} = fun_amqp:basic_consume(Chan, Control, true),
