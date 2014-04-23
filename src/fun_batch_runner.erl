@@ -220,9 +220,8 @@ make_request(receipts, Item, St) ->
     [ fun_smpp_node:deliver_sm(St#st.node, Params)].
 
 respond_and_ack(ID, Tag, MsgId, ReplyTo, St) ->
-    {ok, Encoded} =
+    {ok, RespPayload} =
         'FunnelAsn':encode('BatchAck', #'BatchAck'{batchId = ID}),
-    RespPayload = list_to_binary(Encoded),
     RespProps = #'P_basic'{
         content_type   = <<"BatchAck">>,
         correlation_id = MsgId,

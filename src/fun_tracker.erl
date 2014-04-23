@@ -428,7 +428,7 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
         messageIds = MsgIds
     },
     {ok, EncodedReq} = 'JustAsn':encode('SmsRequest', ReqAsn),
-    list_to_binary(EncodedReq).
+    EncodedReq.
 
 delete_user_batches(_Toke, _CustomerId, _UserId, []) ->
     ok;

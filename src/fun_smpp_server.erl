@@ -240,9 +240,8 @@ handle_cast({notify_connection_up,
         connectedAt  = fun_time:utc_str(ConnectedAt),
         timestamp    = fun_time:utc_str()
     },
-    {ok, Encoded} =
+    {ok, Payload} =
         'FunnelAsn':encode('ConnectionUpEvent', ConnectionUpEvent),
-    Payload = list_to_binary(Encoded),
     RoutingKey = funnel_app:get_env(queue_backend_events),
     Props = #'P_basic'{
         content_type = <<"ConnectionUpEvent">>,
@@ -501,8 +500,7 @@ handle_basic_deliver(<<"DisconnectRequest">>, Payload, Props, St) ->
         end, Nodes
     ),
     Response = #'DisconnectResponse'{},
-    {ok, Encoded} = 'FunnelAsn':encode('DisconnectResponse', Response),
-    RespPayload = list_to_binary(Encoded),
+    {ok, RespPayload} = 'FunnelAsn':encode('DisconnectResponse', Response),
     #'P_basic'{message_id = MsgId, reply_to = ReplyTo} = Props,
     RespProps = #'P_basic'{
         content_type   = <<"DisconnectResponse">>,
@@ -541,9 +539,8 @@ handle_basic_deliver(<<"ConnectionsRequest">>, _Payload, Props, St) ->
             #node.connected_at, lists:flatten(Connections)
         )
     },
-    {ok, Encoded} =
+    {ok, RespPayload} =
         'FunnelAsn':encode('ConnectionsResponse', ConnectionsResponse),
-    RespPayload = list_to_binary(Encoded),
     #'P_basic'{message_id = MsgId, reply_to = ReplyTo} = Props,
     RespProps = #'P_basic'{
         content_type   = <<"ConnectionsResponse">>,
@@ -573,8 +570,7 @@ handle_basic_deliver(<<"ThroughputRequest">>, _Payload, Props, St) ->
         end, fun_throughput:slices()
     ),
     Response = #'ThroughputResponse'{slices = Slices},
-    {ok, Encoded} = 'FunnelAsn':encode('ThroughputResponse', Response),
-    RespPayload = list_to_binary(Encoded),
+    {ok, RespPayload} = 'FunnelAsn':encode('ThroughputResponse', Response),
     #'P_basic'{message_id = MsgId, reply_to = ReplyTo} = Props,
     RespProps = #'P_basic'{
         content_type   = <<"ThroughputResponse">>,
@@ -603,8 +599,7 @@ request_backend_auth(Chan, UUID, Addr, CustomerId, UserId, Password, Type, Timeo
         timestamp    = Timestamp,
         expiration   = Expiration
     },
-    {ok, Encoded} = 'FunnelAsn':encode('BindRequest', BindRequest),
-    Payload = list_to_binary(Encoded),
+    {ok, Payload} = 'FunnelAsn':encode('BindRequest', BindRequest),
     RoutingKey = funnel_app:get_env(queue_backend_auth),
     Props = #'P_basic'{
         content_type = <<"BindRequest">>,
@@ -618,8 +613,7 @@ notify_backend_server_up(Chan) ->
     ServerUpEvent = #'ServerUpEvent'{
         timestamp = fun_time:utc_str()
     },
-    {ok, Encoded} = 'FunnelAsn':encode('ServerUpEvent', ServerUpEvent),
-    Payload = list_to_binary(Encoded),
+    {ok, Payload} = 'FunnelAsn':encode('ServerUpEvent', ServerUpEvent),
     RoutingKey = funnel_app:get_env(queue_backend_events),
     Props = #'P_basic'{
         content_type = <<"ServerUpEvent">>,
@@ -631,8 +625,7 @@ notify_backend_server_down(Chan) ->
     ServerDownEvent = #'ServerDownEvent'{
         timestamp = fun_time:utc_str()
     },
-    {ok, Encoded} = 'FunnelAsn':encode('ServerDownEvent', ServerDownEvent),
-    Payload = list_to_binary(Encoded),
+    {ok, Payload} = 'FunnelAsn':encode('ServerDownEvent', ServerDownEvent),
     RoutingKey = funnel_app:get_env(queue_backend_events),
     Props = #'P_basic'{
         content_type = <<"ServerDownEvent">>,
@@ -649,9 +642,8 @@ notify_backend_server_down(Chan) ->
 %%         connectedAt  = fun_time:utc_str(ConnectedAt),
 %%         timestamp    = fun_time:utc_str()
 %%     },
-%%     {ok, Encoded} =
+%%     {ok, Payload} =
 %%         'FunnelAsn':encode('ConnectionUpEvent', ConnectionUpEvent),
-%%     Payload = list_to_binary(Encoded),
 %%     RoutingKey = funnel_app:get_env(queue_backend_events),
 %%     Props = #'P_basic'{
 %%         content_type = <<"ConnectionUpEvent">>,
@@ -678,9 +670,8 @@ notify_backend_connection_down(Chan, UUID, CustomerId, UserId, Type,
         reason       = Reason,
         timestamp    = fun_time:utc_str()
     },
-    {ok, Encoded} =
+    {ok, Payload} =
         'FunnelAsn':encode('ConnectionDownEvent', ConnectionDownEvent),
-    Payload = list_to_binary(Encoded),
     RoutingKey = funnel_app:get_env(queue_backend_events),
     Props = #'P_basic'{
         content_type = <<"ConnectionDownEvent">>,
