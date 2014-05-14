@@ -207,7 +207,7 @@ handle_call({handle_bind, Pid, {Addr, Type, CustomerId, UserId, Password}},
                 "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s) (~s)",
                 [Addr, CustomerId, UserId, Password, Type, "already bound"]
             ),
-            {reply, {error, ?ESME_RBINDFAIL}, St}
+            {reply, {error, ?ESME_RALYBND}, St}
     end;
 
 handle_call(connections, _From, St) ->
