@@ -29,6 +29,7 @@
 -include("otp_records.hrl").
 -include("helpers.hrl").
 -include_lib("oserl/include/oserl.hrl").
+-include_lib("alley_dto/include/adto.hrl").
 -include_lib("alley_dto/include/FunnelAsn.hrl").
 
 -ifdef(POWER_ALLEY).
@@ -168,7 +169,9 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                 "node: bound (addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s)",
                 [St#st.addr, CustomerId, UserId, Password, Type]
             ),
-            fun_coverage:fill_coverage_tab(?gv(networks, Customer), St#st.coverage_tab),
+            Networks = ?gv(networks, Customer),
+            DefProvId = ?gv(default_provider_id, Customer),
+            fill_coverage_tab(Networks, DefProvId, St#st.coverage_tab),
             fun_tracker:register_user(CustomerId, UserId),
             lists:foreach(fun(Prov) -> ets:insert(St#st.providers, Prov) end,
                           ?gv(providers, Customer)),
@@ -453,17 +456,17 @@ step(throttle, {SeqNum, Params}, St) ->
     end;
 
 step(verify_coverage, {SeqNum, Params}, St) ->
-    case fun_coverage:which_network(dest_addr(Params), St#st.coverage_tab) of
-        {NetworkId, DestDigits, NetworkProvderId} ->
+    case which_network(Params, St#st.coverage_tab) of
+        {NetworkId, DestAddr, ProviderId} ->
+            DestDigits = DestAddr#addr.addr,
+            DestTon    = DestAddr#addr.ton,
+            DestNpi    = DestAddr#addr.npi,
             Params1 =
                 ?KEYREPLACE3(destination_addr, DestDigits,
-                    ?KEYREPLACE3(dest_addr_ton, ?TON_INTERNATIONAL,
-                        ?KEYREPLACE3(dest_addr_npi, ?NPI_ISDN, Params))),
-            Params2 = case St#st.default_provider_id of
-                          undefined -> [{provider_id, NetworkProvderId}|Params1];
-                          ID        -> [{provider_id, ID}|Params1]
-                      end,
-            step(tlv_params, {SeqNum, [{network_id, NetworkId}|Params2]}, St);
+                    ?KEYREPLACE3(dest_addr_ton, DestTon,
+                        ?KEYREPLACE3(dest_addr_npi, DestNpi, Params))),
+            Params2 = [{network_id, NetworkId}, {provider_id, ProviderId}|Params1],
+            step(tlv_params, {SeqNum, Params2}, St);
         undefined ->
             {error, ?ESME_RINVDSTADR, "invalid destination_addr"}
     end;
@@ -700,6 +703,27 @@ step(add_dest, {SeqNum, Params, FP, BatchId, Size}, St) ->
 %% -------------------------------------------------------------------------
 %% private functions
 %% -------------------------------------------------------------------------
+
+fill_coverage_tab(Networks, DefProvId, Tab) ->
+    Networks2 = adto_funnel:networks_to_dto(Networks),
+    DefProvId2 = list_to_binary(DefProvId),
+    alley_router_coverage:fill_coverage_tab(Networks2, DefProvId2, Tab).
+
+which_network(Params, Tab) ->
+    DestAddr = #addr{
+        addr = list_to_binary(?KEYFIND2(destination_addr, Params)),
+        ton  = ?KEYFIND2(dest_addr_ton, Params),
+        npi  = ?KEYFIND2(dest_addr_npi, Params)
+    },
+    case alley_router_coverage:which_network(DestAddr, Tab) of
+        undefined ->
+            undefined;
+        {NetworkId, DestAddr2, ProviderId} ->
+            DestAddr3 = DestAddr2#addr{
+                addr = binary_to_list(DestAddr2#addr.addr)
+            },
+            {binary_to_list(NetworkId), DestAddr3, binary_to_list(ProviderId)}
+    end.
 
 -ifdef(POWER_ALLEY).
 billy_reserve({SeqNum, Params}, St) ->
