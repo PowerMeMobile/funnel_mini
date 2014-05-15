@@ -706,7 +706,13 @@ step(add_dest, {SeqNum, Params, FP, BatchId, Size}, St) ->
 
 fill_coverage_tab(Networks, DefProvId, Tab) ->
     Networks2 = adto_funnel:networks_to_dto(Networks),
-    DefProvId2 = list_to_binary(DefProvId),
+    DefProvId2 =
+        case DefProvId of
+            undefined ->
+                undefined;
+            DefProvId when is_list(DefProvId) ->
+                list_to_binary(DefProvId)
+        end,
     alley_router_coverage:fill_coverage_tab(Networks2, DefProvId2, Tab).
 
 which_network(Params, Tab) ->
