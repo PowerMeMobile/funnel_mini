@@ -543,9 +543,27 @@ step(validate_source_ton_npi, {SeqNum, Params}, St) ->
         (Ton0 =/= Ton orelse Npi0 =/= Npi) andalso DoCorrect ->
             Corrected = ?KEYREPLACE3(source_addr_ton, Ton,
                                      ?KEYREPLACE3(source_addr_npi, Npi, Params)),
-            step(ensure_message, {SeqNum, Corrected}, St);
+            step(check_blacklist, {SeqNum, Corrected}, St);
         true ->
-            step(ensure_message, {SeqNum, Params}, St)
+            step(check_blacklist, {SeqNum, Params}, St)
+    end;
+
+step(check_blacklist, {SeqNum, Params}, St) ->
+    DstAddr = #addr{
+        addr = list_to_binary(?KEYFIND2(destination_addr, Params)),
+        ton  = ?KEYFIND2(dest_addr_ton, Params),
+        npi  = ?KEYFIND2(dest_addr_npi, Params)
+    },
+    SrcAddr = #addr{
+        addr = list_to_binary(?KEYFIND2(source_addr, Params)),
+        ton  = ?KEYFIND2(source_addr_ton, Params),
+        npi  = ?KEYFIND2(source_addr_npi, Params)
+    },
+    case alley_services_blacklist:check(DstAddr, SrcAddr) of
+        allowed ->
+            step(ensure_message, {SeqNum, Params}, St);
+        denied ->
+            {error, 16#400, "blacklisted"}
     end;
 
 step(ensure_message, {SeqNum, Params}, St) ->
@@ -713,7 +731,7 @@ fill_coverage_tab(Networks, DefProvId, Tab) ->
             DefProvId when is_list(DefProvId) ->
                 list_to_binary(DefProvId)
         end,
-    alley_router_coverage:fill_coverage_tab(Networks2, DefProvId2, Tab).
+    alley_services_coverage:fill_coverage_tab(Networks2, DefProvId2, Tab).
 
 which_network(Params, Tab) ->
     DestAddr = #addr{
@@ -721,7 +739,7 @@ which_network(Params, Tab) ->
         ton  = ?KEYFIND2(dest_addr_ton, Params),
         npi  = ?KEYFIND2(dest_addr_npi, Params)
     },
-    case alley_router_coverage:which_network(DestAddr, Tab) of
+    case alley_services_coverage:which_network(DestAddr, Tab) of
         undefined ->
             undefined;
         {NetworkId, DestAddr2, ProviderId} ->

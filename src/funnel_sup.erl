@@ -15,7 +15,7 @@
 %% API
 %% -------------------------------------------------------------------------
 
--spec start_link() -> {'ok', pid()} | {'error', any()}.
+-spec start_link() -> {ok, pid()} | {error, any()}.
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
@@ -24,12 +24,15 @@ start_link() ->
 %% -------------------------------------------------------------------------
 
 init([]) ->
-    {ok, {{rest_for_one, 5, 30},
-          [?CHILD(temp_fun_cache, permanent, 5000),
-           ?CHILD(fun_amqp_pool, permanent, 5000),
-           ?CHILD(fun_tracker, permanent, 5000),
-           ?CHILD(fun_throttle, permanent, 5000),
-           ?CHILD(fun_throughput, permanent, 5000),
-           ?CHILD(fun_errors, permanent, 5000),
-           ?CHILD(fun_batch_cursor, permanent, 5000),
-           ?CHILD(fun_smpp_server, transient, 5000)]}}.
+    {ok, {{rest_for_one, 5, 30}, [
+        ?CHILD(alley_services_api, permanent, 5000),
+        ?CHILD(alley_services_blacklist, permanent, 5000),
+        ?CHILD(temp_fun_cache, permanent, 5000),
+        ?CHILD(fun_amqp_pool, permanent, 5000),
+        ?CHILD(fun_tracker, permanent, 5000),
+        ?CHILD(fun_throttle, permanent, 5000),
+        ?CHILD(fun_throughput, permanent, 5000),
+        ?CHILD(fun_errors, permanent, 5000),
+        ?CHILD(fun_batch_cursor, permanent, 5000),
+        ?CHILD(fun_smpp_server, transient, 5000)
+    ]}}.
