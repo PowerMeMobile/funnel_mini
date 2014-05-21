@@ -15,10 +15,12 @@ handle_event(<<"text/plain">>, <<"BlacklistChanged">>) ->
     ?log_info("Got BlacklistChanged event", []),
     alley_services_blacklist:update();
 handle_event(<<"text/plain">>, <<"CustomerChanged:", EventInfo/binary>>) ->
-    [CustomerUuid, CustomerId] = binary:split(EventInfo, <<":">>),
-    ?log_info("Got CustomerChanged event: CustomerUuuid:~p CustomerId:~p",
+    [CustomerUuidBin, CustomerIdBin] = binary:split(EventInfo, <<":">>),
+    CustomerUuid = binary_to_list(CustomerUuidBin),
+    CustomerId = binary_to_list(CustomerIdBin),
+    ?log_info("Got CustomerChanged event: CustomerUuid:~p CustomerId:~p",
         [CustomerUuid, CustomerId]),
-    ok;
+    alley_services_auth_cache:delete(CustomerId);
 handle_event(ContentType, Payload) ->
     ?log_warn("Got unexpected event: ~p ~p", [ContentType, Payload]),
     ok.

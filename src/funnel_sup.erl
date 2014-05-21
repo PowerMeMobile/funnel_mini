@@ -25,10 +25,10 @@ start_link() ->
 
 init([]) ->
     {ok, {{rest_for_one, 5, 30}, [
+        ?CHILD(alley_services_auth_cache, permanent, 5000),
         ?CHILD(alley_services_api, permanent, 5000),
         ?CHILD(alley_services_blacklist, permanent, 5000),
         ?CHILD(alley_services_events, permanent, 5000),
-        ?CHILD(temp_fun_cache, permanent, 5000),
         ?CHILD(fun_amqp_pool, permanent, 5000),
         ?CHILD(fun_tracker, permanent, 5000),
         ?CHILD(fun_throttle, permanent, 5000),
