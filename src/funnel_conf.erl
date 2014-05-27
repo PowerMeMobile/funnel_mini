@@ -65,7 +65,7 @@ default(file_log_size)         -> 5000000;
 default(file_log_rotations)    -> 4;
 default(file_log_level)        -> info;
 default(console_log_level)     -> debug;
-default(log_smpp_pdus)         -> false;
+default(log_smpp_pdus)         -> true;
 default(smpp_pdu_log_dir)      -> "log/smpp";
 default(strip_leading_zero)    -> false;
 default(country_code)          -> "999";
