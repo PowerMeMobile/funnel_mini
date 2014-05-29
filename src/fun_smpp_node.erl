@@ -201,11 +201,8 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                     ok
             end,
             erlang:start_timer(?CLOSE_BATCHES_INTERVAL, self(), close_batches),
-			fun_smpp_server:notify_backend_connection_up(	St#st.uuid,
-															CustomerId,
-															UserId,
-															Type,
-															St#st.connected_at),
+            fun_smpp_server:notify_backend_connection_up(St#st.uuid,
+                CustomerId, UserId, Type, St#st.connected_at),
             {reply, {ok, Params},
              St#st{is_bound  = true,
                    customer_id = CustomerId,
@@ -895,8 +892,8 @@ join_batches(Ids, St) ->
     CommonsDests = fun_tracker:get_partial_batches([ ID || {_, ID} <- USorted ]),
     Commons = [ unparse_common(CommonBin) || {CommonBin, _} <- CommonsDests ],
     Message = join_messages([ ?gv(short_message, C) || C <- Commons ]),
-	%% replaced lists:last/1 with erlang:hd/1 to fix
-	%% http://extranet.powermemobile.com/issues/17458
+    %% replaced lists:last/1 with erlang:hd/1 to fix
+    %% http://extranet.powermemobile.com/issues/17458
     Params = ?KEYREPLACE3(short_message, Message,
                           proplists:delete(sar_segment_seqnum,
                                             proplists:delete(sar_total_segments,
