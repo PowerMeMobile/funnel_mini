@@ -72,7 +72,7 @@ read(UUID) when is_binary(UUID) ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    lager:info("cursor: initializing"),
+    lager:info("Cursor: initializing"),
     case mnesia:create_table(cursor,
             [{attributes, record_info(fields, cursor)}, {disc_copies, [node()]}]) of
         {atomic, ok}                        -> ok;
@@ -84,7 +84,7 @@ init([]) ->
 
 
 terminate(Reason, _St) ->
-    lager:info("cursor: terminated (~p)", [Reason]).
+    lager:info("Cursor: terminated (~p)", [Reason]).
 
 
 handle_call({read, UUID}, _From, St) ->

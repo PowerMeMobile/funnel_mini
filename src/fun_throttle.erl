@@ -48,7 +48,7 @@ unset_rps(CustomerId) ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    lager:info("throttle: initializing"),
+    lager:info("Throttle: initializing"),
     {ok, #st{
         total_used         = 0,
         total_max          = funnel_app:get_env(rps),
@@ -58,7 +58,7 @@ init([]) ->
 
 
 terminate(Reason, _St) ->
-    lager:info("throttle: terminated (~p)", [Reason]).
+    lager:info("Throttle: terminated (~p)", [Reason]).
 
 handle_call({is_allowed, CustomerId}, _From, St) ->
     G = funnel_conf:get(throttle_group_seconds),

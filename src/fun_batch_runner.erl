@@ -38,7 +38,7 @@ stop(Pid) ->
 
 init(Params) ->
     process_flag(trap_exit, true),
-    lager:debug("runner: initializing"),
+    lager:debug("Runner: initializing"),
     ConnId = proplists:get_value(connection_id, Params),
     Chan = fun_amqp_pool:open_channel(),
     monitor(process, Chan),
@@ -52,7 +52,7 @@ init(Params) ->
              version = proplists:get_value(version, Params)}}.
 
 terminate(Reason, St) ->
-    lager:debug("runner: terminated (~p)", [Reason]),
+    lager:debug("Runner: terminated (~p)", [Reason]),
     fun_amqp_pool:close_channel(St#st.amqp_chan).
 
 handle_call(Request, _From, St) ->
@@ -71,7 +71,7 @@ handle_info({#'basic.deliver'{delivery_tag = Tag},
             {stop, error, St}
     catch
         _:Reason ->
-            lager:error("runner: rejected a batch (~p)", [Reason]),
+            lager:error("Runner: rejected a batch (~p)", [Reason]),
             fun_amqp:basic_reject(St#st.amqp_chan, Tag, false),
             {noreply, St}
     end;

@@ -31,21 +31,21 @@ set_debug_level() ->
 start(normal, _StartArgs) ->
     ok = funnel_conf:init(),
     ok = load_mibs(),
-    lager:info("funnel: starting up"),
+    lager:info("Funnel: starting up"),
     funnel_mib:send_coldstart_notification(),
     funnel_sup:start_link().
 
 %% This function is called when ?APP application is about to be stopped,
 %% before shutting down the processes of the application.
 prep_stop(St) ->
-    lager:info("funnel: stopping"),
+    lager:info("Funnel: stopping"),
     fun_smpp_server:stop(),
     St.
 
 %% Perform necessary cleaning up *after* ?APP application has stopped.
 stop(_St) ->
     unload_mibs(),
-    lager:info("funnel: stopped").
+    lager:info("Funnel: stopped").
 
 config_change(_Changed, _New, _Removed) ->
     ok.

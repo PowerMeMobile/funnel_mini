@@ -113,7 +113,7 @@ delete_batches(CustomerId, UserId, BatchIds) ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    lager:info("tracker: initializing"),
+    lager:info("Tracker: initializing"),
     {ok, Toke} = toke_drv:start_link(),
     ok = toke_drv:new(Toke),
     ok = toke_drv:set_cache(Toke, 1000),
@@ -128,7 +128,7 @@ init([]) ->
             erlang:start_timer(?CLOSE_BATCHES_INTERVAL, self(), close_batches),
             {ok, #st{toke = Toke, amqp_chan = Chan}};
         {error_from_tokyo_cabinet, Reason} ->
-            lager:error("tracker: ~s", [Reason]),
+            lager:error("Tracker: ~s", [Reason]),
             toke_drv:delete(Toke),
             toke_drv:stop(Toke),
             {stop, Reason}
@@ -140,7 +140,7 @@ terminate(Reason, St) ->
     toke_drv:delete(St#st.toke),
     toke_drv:stop(St#st.toke),
     fun_amqp_pool:close_channel(St#st.amqp_chan),
-    lager:info("tracker: terminated (~p)", [Reason]).
+    lager:info("Tracker: terminated (~p)", [Reason]).
 
 
 handle_call({next_message_id, CustomerId, UserId}, _From, St) ->
