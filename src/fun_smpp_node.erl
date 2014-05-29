@@ -71,6 +71,10 @@
 
 -define(gv(K, P), proplists:get_value(K, P)).
 
+-define(E_BLACKLISTED,           16#400).
+-define(E_CREDIT_LIMIT_EXCEEDED, 16#401).
+-define(E_BILLING_REJECTED,      16#402).
+
 %% -------------------------------------------------------------------------
 %% API
 %% -------------------------------------------------------------------------
@@ -268,6 +272,11 @@ handle_cast({handle_operation, submit_sm, SeqNum, Params}, St) ->
     case handle_submit(SeqNum, Params, St) of
         ok ->
             {noreply, St};
+        {error, ?E_CREDIT_LIMIT_EXCEEDED = Error, Details} ->
+            gen_mc_session:reply(St#st.mc_session, {SeqNum, {error, Error}}),
+            lager:error("node: ~s", [Details]),
+            fun_errors:record(St#st.uuid, Error),
+            {stop, normal, St};
         {error, Error, Details} ->
             gen_mc_session:reply(St#st.mc_session, {SeqNum, {error, Error}}),
             lager:error("node: ~s", [Details]),
@@ -563,7 +572,7 @@ step(check_blacklist, {SeqNum, Params}, St) ->
         allowed ->
             step(ensure_message, {SeqNum, Params}, St);
         denied ->
-            {error, 16#400, "blacklisted"}
+            {error, ?E_BLACKLISTED, "blacklisted"}
     end;
 
 step(ensure_message, {SeqNum, Params}, St) ->
@@ -609,7 +618,7 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
     case ?gv(validity_period, Params) of
         "" ->
             Params1 = ?KEYREPLACE3(validity_period, St#st.default_validity, Params),
-            step(billy_reserve_or_accept, {SeqNum, Params1}, St);
+            step(check_billing, {SeqNum, Params1}, St);
         VP ->
             Delta = time_delta(VP),
             DoCutoff = funnel_conf:get(cutoff_validity_period),
@@ -624,22 +633,34 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
                         [St#st.customer_id, St#st.user_id, VP, NewVP]
                     ),
                     Cutoff = ?KEYREPLACE3(validity_period, NewVP, Params),
-                    step(billy_reserve_or_accept, {SeqNum, Cutoff}, St);
+                    step(check_billing, {SeqNum, Cutoff}, St);
                 Delta > St#st.max_validity ->
                     {error, ?ESME_RINVEXPIRY, "validity_period too long"};
                 true ->
-                    step(billy_reserve_or_accept, {SeqNum, Params}, St)
+                    step(check_billing, {SeqNum, Params}, St)
             end
     end;
 
-step(billy_reserve_or_accept, {SeqNum, Params}, St) ->
+step(check_billing, {SeqNum, Params}, St) ->
     case St#st.pay_type of
         postpaid ->
             lager:debug("node: send without billing"),
-            step(accept, {SeqNum, Params}, St);
+            step(request_credit, {SeqNum, Params}, St);
         prepaid ->
             lager:debug("node: send with billing"),
             step(billy_reserve, {SeqNum, Params}, St)
+    end;
+
+step(request_credit, {SeqNum, Params}, St) ->
+    CustomerId = St#st.customer_id,
+    Price = 1.0,
+    case alley_services_api:request_credit(CustomerId, Price) of
+        {allowed, CreditLeft} ->
+            lager:debug("sending allowed. credit left: ~p", [CreditLeft]),
+            step(accept, {SeqNum, Params}, St);
+        {denied, CreditLeft} ->
+            lager:error("sending denied. credit left: ~p", [CreditLeft]),
+            {error, ?E_CREDIT_LIMIT_EXCEEDED, "credit limit is exceeded"}
     end;
 
 step(billy_reserve, {SeqNum, Params}, St) ->
@@ -763,7 +784,7 @@ billy_reserve({SeqNum, Params}, St) ->
             end,
             Result;
         {rejected, Reason} ->
-            {error, ?ESME_RSUBMITFAIL, io_lib:format("rejected by billy with: ~p", [Reason])}
+            {error, ?E_BILLING_REJECTED, io_lib:format("rejected by billy with: ~p", [Reason])}
     end.
 -else.
 billy_reserve({_SeqNum, _Params}, _St) ->
