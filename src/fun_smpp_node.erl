@@ -657,7 +657,7 @@ step(request_credit, {SeqNum, Params}, St) ->
     CustomerId = St#st.customer_id,
     NetworkId = ?gv(network_id, Params),
     [{_, Price}] = ets:lookup(St#st.prices_tab, NetworkId),
-    case alley_services_api:request_credit(CustomerId, Price) of
+    case fun_credit:request_credit(CustomerId, Price) of
         {allowed, CreditLeft} ->
             lager:debug("Sending allowed. CustomerId: ~p, credit left: ~p",
                 [CustomerId, CreditLeft]),
