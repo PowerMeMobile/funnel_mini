@@ -57,6 +57,7 @@
              batch_tab        :: ets:tid(),
              parts_tab        :: ets:tid(),
              coverage_tab     :: ets:tid(),
+             prices_tab       :: ets:tid(),
              req_tab          :: ets:tid(),
              deliver_queue    :: queue(),
              addr             :: string(),
@@ -119,6 +120,7 @@ init(LSock) ->
         batch_tab    = ets:new(batch_tab, []),
         parts_tab    = ets:new(parts_tab, []),
         coverage_tab = ets:new(coverage_tab, []),
+        prices_tab   = ets:new(prices_tab, []),
         req_tab      = ets:new(req_tab, []),
         deliver_queue = queue:new(),
         providers    = ets:new(providers, [{keypos, #'Provider'.id}])
@@ -148,6 +150,7 @@ terminate(Reason, St) ->
         {_, BatchId, _, _} <- ets:tab2list(St#st.batch_tab) ],
     ets:delete(St#st.batch_tab),
     ets:delete(St#st.coverage_tab),
+    ets:delete(St#st.prices_tab),
     lager:debug("node: terminated (~p)", [Reason]).
 
 handle_call({handle_accept, Addr}, _From, St) ->
@@ -174,8 +177,10 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                 [St#st.addr, CustomerId, UserId, Password, Type]
             ),
             Networks = ?gv(networks, Customer),
+            Providers = ?gv(providers, Customer),
             DefProvId = ?gv(default_provider_id, Customer),
             fill_coverage_tab(Networks, DefProvId, St#st.coverage_tab),
+            fill_prices_tab(Networks, Providers, DefProvId, St#st.prices_tab),
             fun_tracker:register_user(CustomerId, UserId),
             lists:foreach(fun(Prov) -> ets:insert(St#st.providers, Prov) end,
                           ?gv(providers, Customer)),
@@ -650,7 +655,8 @@ step(check_billing, {SeqNum, Params}, St) ->
 
 step(request_credit, {SeqNum, Params}, St) ->
     CustomerId = St#st.customer_id,
-    Price = 1.0,
+    NetworkId = ?gv(network_id, Params),
+    [{_, Price}] = ets:lookup(St#st.prices_tab, NetworkId),
     case alley_services_api:request_credit(CustomerId, Price) of
         {allowed, CreditLeft} ->
             lager:debug("sending allowed. credit left: ~p", [CreditLeft]),
@@ -750,6 +756,22 @@ fill_coverage_tab(Networks, DefProvId, Tab) ->
                 list_to_binary(DefProvId)
         end,
     alley_services_coverage:fill_coverage_tab(Networks2, DefProvId2, Tab).
+
+fill_prices_tab(Networks, Providers, DefProvId, Tab) ->
+    Networks2 = adto_funnel:networks_to_dto(Networks),
+    Providers2 = adto_funnel:providers_to_dto(Providers),
+    DefProvId2 =
+        case DefProvId of
+            undefined ->
+                undefined;
+            DefProvId when is_list(DefProvId) ->
+                list_to_binary(DefProvId)
+        end,
+    PricesMap = alley_services_coverage:build_network_to_sms_price_map(
+        Networks2, Providers2, DefProvId2),
+    PricesMap2 =
+        [{binary_to_list(NetworkId), Price} || {NetworkId, Price} <- PricesMap],
+    ets:insert(Tab, PricesMap2).
 
 which_network(Params, Tab) ->
     DestAddr = #addr{
