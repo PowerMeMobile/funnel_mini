@@ -317,7 +317,7 @@ handle_info(#timeout{msg = {handle_bind, CustomerId, UserId, Type, Password}}, S
                 "(customer: ~s, user: ~s, password: ~s, type: ~s), trying cache",
                 [CustomerId, UserId, Password, Type]
             ),
-            case alley_services_auth_cache:fetch(CustomerId, UserId, Type) of
+            case alley_services_auth_cache:fetch(CustomerId, UserId, Type, Password) of
                 not_found ->
                     lager:error(
                         "Server: failed to receive bind response "
@@ -457,8 +457,8 @@ handle_basic_deliver(<<"BindResponse">>, Payload, _Props, St) ->
             case Result of
                 {customer, _} ->
                     #node{customer_id = CustomerId, user_id = UserId,
-                          password = _Password, type = Type} = Node,
-                    alley_services_auth_cache:store(CustomerId, UserId, Type, Payload);
+                          password = Password, type = Type} = Node,
+                    alley_services_auth_cache:store(CustomerId, UserId, Type, Password, Payload);
                 _ ->
                     ok
             end,
@@ -488,9 +488,9 @@ handle_basic_deliver(<<"DisconnectRequest">>, Payload, Props, St) ->
                 end
         end,
     lists:foreach(
-        fun(#node{uuid = UUID, pid = Pid, type = Type, password = _Password}) ->
+        fun(#node{uuid = UUID, pid = Pid, type = Type, password = Password}) ->
                 fun_smpp_node:unbind(Pid),
-                alley_services_auth_cache:delete(CustomerId, UserId, Type),
+                alley_services_auth_cache:delete(CustomerId, UserId, Type, Password),
                 lager:info(
                     "Server: unbinding a client "
                     "(uuid: ~s, customer: ~s, user: ~s)",
@@ -580,7 +580,7 @@ handle_basic_deliver(<<"ThroughputRequest">>, _Payload, Props, St) ->
     {noreply, St}.
 
 request_backend_auth(Chan, UUID, Addr, CustomerId, UserId, Password, Type, Timeout) ->
-    Cached = alley_services_auth_cache:fetch(CustomerId, UserId, Type),
+    Cached = alley_services_auth_cache:fetch(CustomerId, UserId, Type, Password),
     Now = fun_time:milliseconds(),
     Then = Now + Timeout,
     Timestamp = #'PreciseTime'{time = fun_time:utc_str(fun_time:milliseconds_to_now(Now)),
