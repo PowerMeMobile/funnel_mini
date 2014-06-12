@@ -430,7 +430,7 @@ handle_bind(Node, {Cmd, {_, _, _, Params}}) ->
                      ?gv(password, Params)},
                     infinity).
 
-%% Deliver an async repsonse to the request with Ref.
+%% Deliver an async response to the request with Ref.
 handle_resp(Node, Resp, Ref) ->
     ok = gen_server:cast(Node, {handle_resp, Resp, Ref}).
 
