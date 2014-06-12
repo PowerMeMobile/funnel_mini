@@ -399,8 +399,10 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
                 end,
     DataCoding = ?gv("data_coding", Common),
     Params = case DataCoding of
-                 240 -> [{data_coding, 240}|ParamsSar];
-                 _   -> ParamsSar
+                 C when C =:= 16; C =:= 20; C =:= 24; C =:= 240 ->
+                    [{data_coding, C}|ParamsSar];
+                 _
+                    -> ParamsSar
              end,
     ReqAsn = #'SmsRequest'{
         id = BatchId,
@@ -413,7 +415,7 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
             case DataCoding of
                 DC when DC =:= 0; DC =:= 1; DC =:= 3; DC =:= 240 ->
                     {text, default};
-                8 ->
+                DC when DC =:= 8; DC =:= 24 ->
                     {text, ucs2};
                 DC ->
                     {other, DC}
