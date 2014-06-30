@@ -117,6 +117,7 @@ init([]) ->
     {ok, Toke} = toke_drv:start_link(),
     ok = toke_drv:new(Toke),
     ok = toke_drv:set_cache(Toke, 1000),
+    ok = toke_drv:set_df_unit(Toke, 8),
     case toke_drv:open(Toke, ?TCH_FILE, [read, write, create]) of
         ok ->
             Chan = fun_amqp_pool:open_channel(),
