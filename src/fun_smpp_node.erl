@@ -169,6 +169,16 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                                [C, U] -> {C, U};
                                _      -> {SystemType, SystemId}
                            end,
+    PduLogName = pdu_log_name(Type, CustomerId, UserId, St#st.uuid),
+    case funnel_conf:get(log_smpp_pdus) of
+        true ->
+            LogParams = [{base_dir, funnel_conf:get(smpp_pdu_log_dir)},
+                         {base_file_name, PduLogName},
+                         {max_size, funnel_conf:get(file_log_size)}],
+            pmm_smpp_logger_h:activate(St#st.smpp_log_mgr, LogParams);
+        false ->
+            ok
+    end,
     try fun_smpp_server:handle_bind(self(), {St#st.addr, Type,
                                              CustomerId, UserId, Password}) of
         {ok, Params, Customer} ->
@@ -195,16 +205,6 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                     true ->
                         undefined
                 end,
-            PduLogName = pdu_log_name(Type, CustomerId, UserId, St#st.uuid),
-            case funnel_conf:get(log_smpp_pdus) of
-                true ->
-                    LogParams = [{base_dir, funnel_conf:get(smpp_pdu_log_dir)},
-                                 {base_file_name, PduLogName},
-                                 {max_size, funnel_conf:get(file_log_size)}],
-                    pmm_smpp_logger_h:activate(St#st.smpp_log_mgr, LogParams);
-                false ->
-                    ok
-            end,
             erlang:start_timer(?CLOSE_BATCHES_INTERVAL, self(), close_batches),
             fun_smpp_server:notify_backend_connection_up(St#st.uuid,
                 CustomerId, UserId, Type, St#st.connected_at),
