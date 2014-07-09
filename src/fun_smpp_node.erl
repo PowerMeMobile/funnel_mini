@@ -658,19 +658,23 @@ step(request_credit, {SeqNum, Params}, St) ->
     CustomerId = St#st.customer_id,
     NetworkId = ?gv(network_id, Params),
     [{_, Price}] = ets:lookup(St#st.prices_tab, NetworkId),
+    lager:debug("Node: request credit (customer id: ~p, sending price: ~p)",
+        [CustomerId, Price]),
     case fun_credit:request_credit(CustomerId, Price) of
         {allowed, CreditLeft} ->
-            lager:debug("Sending allowed. CustomerId: ~p, credit left: ~p",
+            lager:debug("Node: sending allowed (customer id: ~p, credit left: ~p)",
                 [CustomerId, CreditLeft]),
             step(accept, {SeqNum, Params}, St);
         {denied, CreditLeft} ->
-            lager:error("Sending denied. CustomerId, credit left: ~p",
+            lager:error("Node: sending denied (customer id: ~p, credit left: ~p)",
                 [CustomerId, CreditLeft]),
             {error, ?E_CREDIT_LIMIT_EXCEEDED, "credit limit is exceeded"}
     end;
 
 step(billy_reserve, {SeqNum, Params}, St) ->
     {ok, SessionId} = funnel_billy_session:get_session_id(),
+    CustomerId = list_to_binary(St#st.customer_uuid),
+    UserId = list_to_binary(St#st.user_id),
     NetworkId = ?gv(network_id, Params),
     ServiceType =
         case alley_services_coverage:which_network_type(
@@ -682,14 +686,21 @@ step(billy_reserve, {SeqNum, Params}, St) ->
             int_net ->
                 ?SERVICE_TYPE_SMS_INT
         end,
+    ServiceRequest = [{ServiceType, 1}],
+    lager:debug("Node: billy reserve (customer id: ~p, user id: ~p, service request: ~p)",
+        [CustomerId, UserId, ServiceRequest]),
     case billy_client:reserve(SessionId, ?CLIENT_TYPE_FUNNEL,
-            list_to_binary(St#st.customer_uuid), list_to_binary(St#st.user_id),
-            ServiceType, 1) of
+            CustomerId, UserId, ServiceRequest) of
         {accepted, TransactionId} ->
+            lager:debug("Node: sending allowed", []),
             Result = step(accept, {SeqNum, Params}, St),
             case Result of
-                ok            -> billy_client:commit(TransactionId);
-                {error, _, _} -> billy_client:rollback(TransactionId)
+                ok ->
+                    lager:debug("Node: commit", []),
+                    billy_client:commit(TransactionId);
+                {error, _, _} ->
+                    lager:debug("Node: rollback", []),
+                    billy_client:rollback(TransactionId)
             end,
             Result;
         {rejected, Reason} ->
