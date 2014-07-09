@@ -31,10 +31,7 @@
 -include_lib("oserl/include/oserl.hrl").
 -include_lib("alley_dto/include/adto.hrl").
 -include_lib("alley_dto/include/FunnelAsn.hrl").
-
--ifdef(POWER_ALLEY).
 -include_lib("billy_client/include/billy_client.hrl").
--endif.
 
 -ifdef(TEST).
 -compile(export_all).
@@ -58,6 +55,7 @@
              parts_tab        :: ets:tid(),
              coverage_tab     :: ets:tid(),
              prices_tab       :: ets:tid(),
+             net_type_tab     :: ets:tid(),
              req_tab          :: ets:tid(),
              deliver_queue    :: queue(),
              addr             :: string(),
@@ -121,6 +119,7 @@ init(LSock) ->
         parts_tab    = ets:new(parts_tab, []),
         coverage_tab = ets:new(coverage_tab, []),
         prices_tab   = ets:new(prices_tab, []),
+        net_type_tab = ets:new(net_type_tab, []),
         req_tab      = ets:new(req_tab, []),
         deliver_queue = queue:new(),
         providers    = ets:new(providers, [{keypos, #'Provider'.id}])
@@ -151,6 +150,7 @@ terminate(Reason, St) ->
     ets:delete(St#st.batch_tab),
     ets:delete(St#st.coverage_tab),
     ets:delete(St#st.prices_tab),
+    ets:delete(St#st.net_type_tab),
     lager:debug("Node: terminated (~p)", [Reason]).
 
 handle_call({handle_accept, Addr}, _From, St) ->
@@ -191,6 +191,7 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
             DefProvId = ?gv(default_provider_id, Customer),
             fill_coverage_tab(Networks, DefProvId, St#st.coverage_tab),
             fill_prices_tab(Networks, Providers, DefProvId, St#st.prices_tab),
+            fill_network_type_tab(Networks, St#st.net_type_tab),
             fun_tracker:register_user(CustomerId, UserId),
             lists:foreach(fun(Prov) -> ets:insert(St#st.providers, Prov) end,
                           ?gv(providers, Customer)),
@@ -669,7 +670,32 @@ step(request_credit, {SeqNum, Params}, St) ->
     end;
 
 step(billy_reserve, {SeqNum, Params}, St) ->
-    billy_reserve({SeqNum, Params}, St);
+    {ok, SessionId} = funnel_billy_session:get_session_id(),
+    NetworkId = ?gv(network_id, Params),
+    ServiceType =
+        case alley_services_coverage:which_network_type(
+                list_to_binary(NetworkId), St#st.net_type_tab) of
+            on_net ->
+                ?SERVICE_TYPE_SMS_ON;
+            off_net ->
+                ?SERVICE_TYPE_SMS_OFF;
+            int_net ->
+                ?SERVICE_TYPE_SMS_INT
+        end,
+    case billy_client:reserve(SessionId, ?CLIENT_TYPE_FUNNEL,
+            list_to_binary(St#st.customer_uuid), list_to_binary(St#st.user_id),
+            ServiceType, 1) of
+        {accepted, TransactionId} ->
+            Result = step(accept, {SeqNum, Params}, St),
+            case Result of
+                ok            -> billy_client:commit(TransactionId);
+                {error, _, _} -> billy_client:rollback(TransactionId)
+            end,
+            Result;
+        {rejected, Reason} ->
+            {error, ?E_BILLING_REJECTED,
+                io_lib:format("rejected by billy with: ~p", [Reason])}
+    end;
 
 step(accept, {SeqNum, Params}, St) ->
     case ?gv(sar_msg_ref_num, Params) of
@@ -775,6 +801,10 @@ fill_prices_tab(Networks, Providers, DefProvId, Tab) ->
         [{binary_to_list(NetworkId), Price} || {NetworkId, Price} <- PricesMap],
     ets:insert(Tab, PricesMap2).
 
+fill_network_type_tab(Networks, Tab) ->
+    Networks2 = adto_funnel:networks_to_dto(Networks),
+    alley_services_coverage:fill_network_type_tab(Networks2, Tab).
+
 which_network(Params, Tab) ->
     DestAddr = #addr{
         addr = list_to_binary(?KEYFIND2(destination_addr, Params)),
@@ -790,27 +820,6 @@ which_network(Params, Tab) ->
             },
             {binary_to_list(NetworkId), DestAddr3, binary_to_list(ProviderId)}
     end.
-
--ifdef(POWER_ALLEY).
-billy_reserve({SeqNum, Params}, St) ->
-    {ok, SessionId} = funnel_billy_session:get_session_id(),
-    case billy_client:reserve(SessionId, ?CLIENT_TYPE_FUNNEL,
-            list_to_binary(St#st.customer_uuid), list_to_binary(St#st.user_id),
-            ?SERVICE_TYPE_SMS_ON, 1) of
-        {accepted, TransactionId} ->
-            Result = step(accept, {SeqNum, Params}, St),
-            case Result of
-                ok            -> billy_client:commit(TransactionId);
-                {error, _, _} -> billy_client:rollback(TransactionId)
-            end,
-            Result;
-        {rejected, Reason} ->
-            {error, ?E_BILLING_REJECTED, io_lib:format("rejected by billy with: ~p", [Reason])}
-    end.
--else.
-billy_reserve({_SeqNum, _Params}, _St) ->
-    {error, ?ESME_RSUBMITFAIL, io_lib:format("prepaid is not supported", [])}.
--endif.
 
 reply(Pid, Reply) ->
     Pid ! {smpp_node_reply, Reply}.

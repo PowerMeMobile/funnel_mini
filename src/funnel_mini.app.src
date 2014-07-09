@@ -11,7 +11,8 @@
         amqp_client,
         gproc,
         lager,
-        rmql
+        rmql,
+        billy_client
     ]},
     {mod, {funnel_app, []}}
 ]}.
