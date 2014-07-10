@@ -672,7 +672,7 @@ step(request_credit, {SeqNum, Params}, St) ->
     end;
 
 step(billy_reserve, {SeqNum, Params}, St) ->
-    {ok, SessionId} = funnel_billy_session:get_session_id(),
+    {ok, SessionId} = alley_services_billy_session:get_session_id(),
     CustomerId = list_to_binary(St#st.customer_uuid),
     UserId = list_to_binary(St#st.user_id),
     NetworkId = ?gv(network_id, Params),
