@@ -77,7 +77,8 @@ default(cutoff_validity_period)-> false;
 default(deliver_sm_window_size)-> 1;
 default(throttle_group_seconds)-> 3;
 default(backend_response_time) -> 1000;
-default(max_stop_time)         -> 120000.
+default(max_stop_time)         -> 120000;
+default(override_source_addr)  -> any. % <empty> | any | false
 
 default_addr() ->
 	{0,0,0,0}.

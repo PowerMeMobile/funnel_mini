@@ -488,24 +488,33 @@ step(validate_tlv, {SeqNum, Params}, St) ->
     end;
 
 step(ensure_source, {SeqNum, Params}, St) ->
-    case lists:keyfind(source_addr, 1, Params) of
-        {source_addr, ""} ->
-            % empty source_addr -> try replacing with default one.
+    {source_addr, Addr} = lists:keyfind(source_addr, 1, Params),
+    case funnel_conf:get(override_source_addr) of
+        any ->
             case St#st.default_source of
                 {A, T, N} ->
-                    % use the default one.
                     Replaced =
                         ?KEYREPLACE3(source_addr, A,
                             ?KEYREPLACE3(source_addr_ton, T,
-                                ?KEYREPLACE3(source_addr_npi, N, Params)
-                            )
-                        ),
+                                ?KEYREPLACE3(source_addr_npi, N, Params))),
                     step(validate_source_ton_npi, {SeqNum, Replaced}, St);
                 undefined ->
                     % no default one set -> return error.
                     {error, ?ESME_RINVSRCADR, "not allowed source_addr"}
             end;
-        {source_addr, Addr} ->
+        empty when Addr =:= "" ->
+            case St#st.default_source of
+                {A, T, N} ->
+                    Replaced =
+                        ?KEYREPLACE3(source_addr, A,
+                            ?KEYREPLACE3(source_addr_ton, T,
+                                ?KEYREPLACE3(source_addr_npi, N, Params))),
+                    step(validate_source_ton_npi, {SeqNum, Replaced}, St);
+                undefined ->
+                    % no default one set -> return error.
+                    {error, ?ESME_RINVSRCADR, "not allowed source_addr"}
+            end;
+        _otherwise ->
             case lists:member(string:to_lower(Addr), St#st.allowed_sources) of
                 true ->
                     step(validate_source_ton_npi, {SeqNum, Params}, St);
