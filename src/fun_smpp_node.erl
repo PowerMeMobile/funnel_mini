@@ -654,7 +654,7 @@ step(check_billing, {SeqNum, Params}, St) ->
     end;
 
 step(request_credit, {SeqNum, Params}, St) ->
-    CustomerId = St#st.customer_id,
+    CustomerId = St#st.customer_uuid,
     NetworkId = ?gv(network_id, Params),
     [{_, Price}] = ets:lookup(St#st.prices_tab, NetworkId),
     case fun_credit:request_credit(CustomerId, Price) of
