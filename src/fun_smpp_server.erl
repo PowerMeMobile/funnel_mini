@@ -391,7 +391,8 @@ handle_bind_response(Payload, Node, Nodes, St) ->
                         defaultProviderId = DefaultId,
                         receiptsAllowed = ReceptsAllowed,
                         noRetry = NoRetry, defaultValidity = DefaultValidity,
-                        maxValidity = MaxValidity, payType = PayType} = Customer,
+                        maxValidity = MaxValidity, payType = PayType,
+                        features = Features} = Customer,
             LogRps= case Rps of
                         asn1_NOVALUE -> unlimited;
                         _            -> Rps
@@ -432,7 +433,8 @@ handle_bind_response(Payload, Node, Nodes, St) ->
                                {no_retry, NoRetry},
                                {default_validity, DefaultValidity},
                                {max_validity, MaxValidity},
-                               {pay_type, PayType}]}),
+                               {pay_type, PayType},
+                               {features, Features}]}),
             {noreply, St#st{nodes = [Node_|Nodes]}};
         {error, Details} ->
             lager:warning(

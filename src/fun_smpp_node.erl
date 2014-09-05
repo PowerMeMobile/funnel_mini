@@ -68,7 +68,9 @@
              allowed_sources  :: [string()],
              default_source   :: {string(), integer(), integer()},
              batch_runner     :: pid(),
-             providers_tab    :: ets:tid()}).
+             providers_tab    :: ets:tid(),
+             features_tab     :: ets:tid()
+}).
 
 -define(gv(K, P), proplists:get_value(K, P)).
 
@@ -123,7 +125,8 @@ init(LSock) ->
         prices_tab   = ets:new(prices_tab, []),
         req_tab      = ets:new(req_tab, []),
         deliver_queue = queue:new(),
-        providers_tab = ets:new(providers, [{keypos, #'Provider'.id}])
+        providers_tab = ets:new(providers, [{keypos, #'Provider'.id}]),
+        features_tab  = ets:new(features_tab, [])
     }}.
 
 terminate(Reason, St) ->
@@ -151,6 +154,7 @@ terminate(Reason, St) ->
     ets:delete(St#st.batch_tab),
     ets:delete(St#st.coverage_tab),
     ets:delete(St#st.prices_tab),
+    ets:delete(St#st.features_tab),
     lager:debug("Node: terminated (~p)", [Reason]).
 
 handle_call({handle_accept, Addr}, _From, St) ->
@@ -190,9 +194,11 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
             Networks = ?gv(networks, Customer),
             Providers = ?gv(providers, Customer),
             DefProvId = ?gv(default_provider_id, Customer),
+            Features = ?gv(features, Customer),
             fill_coverage_tab(Networks, DefProvId, St#st.coverage_tab),
             fill_prices_tab(Networks, Providers, DefProvId, St#st.prices_tab),
             fill_providers_tab(Providers, St#st.providers_tab),
+            fill_features_tab(Features, St#st.features_tab),
             Runner =
                 if
                     Type =:= receiver orelse Type =:= transceiver ->
@@ -504,24 +510,40 @@ step(validate_tlv, {SeqNum, Params}, St) ->
     end;
 
 step(ensure_source, {SeqNum, Params}, St) ->
-    case lists:keyfind(source_addr, 1, Params) of
-        {source_addr, ""} ->
-            % empty source_addr -> try replacing with default one.
+    {source_addr, Addr} = lists:keyfind(source_addr, 1, Params),
+    Override =
+        case ets:lookup(St#st.features_tab, override_originator) of
+            [{override_originator, Value}] ->
+                Value;
+            [] ->
+                empty
+        end,
+    case Override of
+        any ->
             case St#st.default_source of
                 {A, T, N} ->
-                    % use the default one.
                     Replaced =
                         ?KEYREPLACE3(source_addr, A,
                             ?KEYREPLACE3(source_addr_ton, T,
-                                ?KEYREPLACE3(source_addr_npi, N, Params)
-                            )
-                        ),
+                                ?KEYREPLACE3(source_addr_npi, N, Params))),
                     step(validate_source_ton_npi, {SeqNum, Replaced}, St);
                 undefined ->
                     % no default one set -> return error.
                     {error, ?ESME_RINVSRCADR, "not allowed source_addr"}
             end;
-        {source_addr, Addr} ->
+        empty when Addr =:= "" ->
+            case St#st.default_source of
+                {A, T, N} ->
+                    Replaced =
+                        ?KEYREPLACE3(source_addr, A,
+                            ?KEYREPLACE3(source_addr_ton, T,
+                                ?KEYREPLACE3(source_addr_npi, N, Params))),
+                    step(validate_source_ton_npi, {SeqNum, Replaced}, St);
+                undefined ->
+                    % no default one set -> return error.
+                    {error, ?ESME_RINVSRCADR, "not allowed source_addr"}
+            end;
+        _otherwise -> %% empty when Addr =/= "" or false
             case lists:member(string:to_lower(Addr), St#st.allowed_sources) of
                 true ->
                     step(validate_source_ton_npi, {SeqNum, Params}, St);
@@ -776,6 +798,17 @@ fill_prices_tab(Networks, Providers, DefProvId, Tab) ->
 
 fill_providers_tab(Providers, Tab) ->
     [ets:insert(Tab, P) || P <- Providers].
+
+fill_features_tab(Features, Tab) ->
+    [ets:insert(Tab, {N, V}) || {N, V} <- known_features(Features)].
+
+known_features(Features) ->
+    [known_feature({N, V}) || #'Feature'{name = N, value = V} <- Features].
+
+known_feature({"override_originator", Value}) ->
+    {override_originator, list_to_existing_atom(Value)};
+known_feature(_) ->
+    false.
 
 which_network(Params, Tab) ->
     DestAddr = #addr{
