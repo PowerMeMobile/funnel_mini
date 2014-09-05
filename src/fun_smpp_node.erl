@@ -68,7 +68,7 @@
              allowed_sources  :: [string()],
              default_source   :: {string(), integer(), integer()},
              batch_runner     :: pid(),
-             providers        :: ets:tid()}).
+             providers_tab    :: ets:tid()}).
 
 -define(gv(K, P), proplists:get_value(K, P)).
 
@@ -123,7 +123,7 @@ init(LSock) ->
         prices_tab   = ets:new(prices_tab, []),
         req_tab      = ets:new(req_tab, []),
         deliver_queue = queue:new(),
-        providers    = ets:new(providers, [{keypos, #'Provider'.id}])
+        providers_tab = ets:new(providers, [{keypos, #'Provider'.id}])
     }}.
 
 terminate(Reason, St) ->
@@ -186,14 +186,13 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                 "Node: bound (addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s)",
                 [St#st.addr, CustomerId, UserId, Password, Type]
             ),
+            fun_tracker:register_user(CustomerId, UserId),
             Networks = ?gv(networks, Customer),
             Providers = ?gv(providers, Customer),
             DefProvId = ?gv(default_provider_id, Customer),
             fill_coverage_tab(Networks, DefProvId, St#st.coverage_tab),
             fill_prices_tab(Networks, Providers, DefProvId, St#st.prices_tab),
-            fun_tracker:register_user(CustomerId, UserId),
-            lists:foreach(fun(Prov) -> ets:insert(St#st.providers, Prov) end,
-                          ?gv(providers, Customer)),
+            fill_providers_tab(Providers, St#st.providers_tab),
             Runner =
                 if
                     Type =:= receiver orelse Type =:= transceiver ->
@@ -608,7 +607,7 @@ step(verify_message_length, {SeqNum, Params}, St) ->
 
 step(verify_registered_delivery, {SeqNum, Params}, St) ->
     RD = ?gv(registered_delivery, Params),
-    [P] = ets:lookup(St#st.providers, ?gv(provider_id, Params)),
+    [P] = ets:lookup(St#st.providers_tab, ?gv(provider_id, Params)),
     case (RD =/= 0) andalso not (St#st.receipts_allowed andalso P#'Provider'.receiptsSupported) of
         true ->
             {error, ?ESME_RINVREGDLVFLG, "receipts not allowed"};
@@ -775,6 +774,9 @@ fill_prices_tab(Networks, Providers, DefProvId, Tab) ->
         [{binary_to_list(NetworkId), Price} || {NetworkId, Price} <- PricesMap],
     ets:insert(Tab, PricesMap2).
 
+fill_providers_tab(Providers, Tab) ->
+    [ets:insert(Tab, P) || P <- Providers].
+
 which_network(Params, Tab) ->
     DestAddr = #addr{
         addr = list_to_binary(?KEYFIND2(destination_addr, Params)),
@@ -888,7 +890,7 @@ encode_message(Params) ->
 open_batch(Params, St) ->
     try encode_message(Params) of
         Encoded ->
-            [P] = ets:lookup(St#st.providers, ?gv(provider_id, Params)),
+            [P] = ets:lookup(St#st.providers_tab, ?gv(provider_id, Params)),
             Extended = [{customer_uuid, St#st.customer_uuid},
                         {no_retry, St#st.no_retry},
                         {priority, St#st.priority},
