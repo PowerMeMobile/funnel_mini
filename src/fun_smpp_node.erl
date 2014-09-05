@@ -152,8 +152,11 @@ terminate(Reason, St) ->
     [ fun_tracker:close_batch(St#st.customer_id, St#st.user_id, BatchId) ||
         {_, BatchId, _, _} <- ets:tab2list(St#st.batch_tab) ],
     ets:delete(St#st.batch_tab),
+    ets:delete(St#st.parts_tab),
+    ets:delete(St#st.req_tab),
     ets:delete(St#st.coverage_tab),
     ets:delete(St#st.prices_tab),
+    ets:delete(St#st.providers_tab),
     ets:delete(St#st.features_tab),
     lager:debug("Node: terminated (~p)", [Reason]).
 
