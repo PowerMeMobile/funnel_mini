@@ -284,18 +284,22 @@ complete_smpp_parts(Params, Parts, Interface) ->
 %% receipt states
 %% -------------------------------------------------------------------------
 
+text_state(enroute)       -> "ENROUTE";
 text_state(delivered)     -> "DELIVRD";
 text_state(expired)       -> "EXPIRED";
 text_state(deleted)       -> "DELETED";
 text_state(undeliverable) -> "UNDELIV";
 text_state(accepted)      -> "ACCEPTD";
 text_state(unknown)       -> "UNKNOWN";
-text_state(rejected)      -> "REJECTD".
+text_state(rejected)      -> "REJECTD";
+text_state(unrecognized)  -> "UNRECOG".
 
+int_state(enroute)       -> 1;
 int_state(delivered)     -> 2;
 int_state(expired)       -> 3;
 int_state(deleted)       -> 4;
 int_state(undeliverable) -> 5;
 int_state(accepted)      -> 6;
 int_state(unknown)       -> 7;
-int_state(rejected)      -> 8.
+int_state(rejected)      -> 8;
+int_state(unrecognized)  -> 9.
