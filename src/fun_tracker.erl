@@ -414,8 +414,12 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
         message = ?gv("short_message", Common),
         encoding =
             case DataCoding of
-                DC when DC =:= 0; DC =:= 1; DC =:= 3; DC =:= 240 ->
+                DC when DC =:= 0; DC =:= 240 ->
                     {text, default};
+                DC when DC =:= 1 ->
+                    {text, ascii};
+                DC when DC =:= 3 ->
+                    {text, latin1};
                 DC when DC =:= 8; DC =:= 24 ->
                     {text, ucs2};
                 DC ->
