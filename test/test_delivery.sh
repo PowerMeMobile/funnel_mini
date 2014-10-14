@@ -8,15 +8,15 @@
 # See https://github.com/PowerMeMobile/alley-setup/ for more details.
 #
 
-HOST=localhost
-PORT=2775
+HOST=${FUNNEL_HOST-127.0.0.1}
+PORT=${FUNNEL_PORT-2775}
 SYSTEM_TYPE=''
 SYSTEM_ID=user
 PASSWORD=password
 SRC_ADDR=375296660001
 DST_ADDR=999296543210
 
-SMPPSIM_SERVER='http://127.0.0.1:8071'
+SMPPSIM_SERVER="http://${SMPPSIM_HOST-$HOST}:${SMPPSIM_PORT-8071}"
 
 EXIT=0
 

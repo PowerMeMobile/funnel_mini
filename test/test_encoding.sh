@@ -8,11 +8,11 @@
 #
 # To make the tests run more smoothly use:
 # funnel_conf:set(batch_max_wait, 1000).
-# application:set_env(k_handlers, receipt_retry_timeout, 10).
+# application:set_env(k_handlers, receipt_retry_timeout, 15).
 #
 
-HOST=localhost
-PORT=2775
+HOST=${FUNNEL_HOST-127.0.0.1}
+PORT=${FUNNEL_PORT-2775}
 SYSTEM_TYPE=''
 SYSTEM_ID=user
 PASSWORD=password
