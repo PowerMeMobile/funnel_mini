@@ -233,6 +233,11 @@ respond_and_ack(ID, Tag, MsgId, ReplyTo, St) ->
 encode_msg(Msg, {text, gsm0338}) ->
     {_Validity, Encoded} = gsm0338:from_utf8(Msg),
     Encoded;
+encode_msg(Msg, {text, ascii}) -> % dlr only
+    Msg;
+encode_msg(Msg, {text, latin1}) -> % dlr only
+    {ok, Encoded} = iconverl:conv("latin1//IGNORE", "utf-8", Msg),
+    Encoded;
 encode_msg(Msg, {text, ucs2}) ->
     {ok, Encoded} = iconverl:conv("ucs-2be//IGNORE", "utf-8", Msg),
     Encoded;
