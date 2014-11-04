@@ -4,6 +4,8 @@
 
 -export([init/0, get/1, set/2]).
 
+-include_lib("alley_common/include/logging.hrl").
+
 -type key() :: 'smpp_server_addr' | 'smpp_server_port' | 'smpp_server_system_id' |
                'session_init_time' | 'enquire_link_time' | 'inactivity_time' | 'response_time' |
                'batch_max_size' | 'batch_max_wait' |
@@ -44,7 +46,7 @@ set(Key, Value) ->
     mnesia:transaction(
         fun() -> mnesia:write(#funnel_conf{key = Key, value = Value}) end
     ),
-    lager:info("Funnel: setting updated [~p: ~p]", [Key, Value]),
+    ?log_info("Funnel: setting updated [~p: ~p]", [Key, Value]),
     ok.
 
 %% -------------------------------------------------------------------------

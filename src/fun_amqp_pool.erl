@@ -1,5 +1,6 @@
 -module(fun_amqp_pool).
 
+-include_lib("alley_common/include/logging.hrl").
 -include("otp_records.hrl").
 
 -behaviour(gen_server).
@@ -41,13 +42,13 @@ close_channel(Chan) ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    lager:info("amqp pool: initializing"),
+    ?log_info("amqp pool: initializing", []),
     case fun_amqp:connection_start() of
         {ok, Conn} ->
             link(Conn),
             {ok, #st{amqp_conn = Conn, amqp_chans = ets:new(amqp_chans, [])}};
         {error, Reason} ->
-            lager:error("amqp pool: failed to start (~p)", [Reason]),
+            ?log_error("amqp pool: failed to start (~p)", [Reason]),
             {stop, Reason}
     end.
 
@@ -56,7 +57,7 @@ terminate(Reason, St) ->
         {_Ref, Pid} <- ets:tab2list(St#st.amqp_chans) ],
     ets:delete(St#st.amqp_chans),
     fun_amqp:connection_close(St#st.amqp_conn),
-    lager:info("amqp pool: terminated (~p)", [Reason]).
+    ?log_info("amqp pool: terminated (~p)", [Reason]).
 
 handle_call(open_channel, {Pid, _Tag}, St) ->
     case fun_amqp:channel_open(St#st.amqp_conn) of

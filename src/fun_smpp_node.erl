@@ -29,6 +29,7 @@
 -include("otp_records.hrl").
 -include("helpers.hrl").
 -include_lib("oserl/include/oserl.hrl").
+-include_lib("alley_common/include/logging.hrl").
 -include_lib("alley_dto/include/adto.hrl").
 -include_lib("alley_dto/include/FunnelAsn.hrl").
 
@@ -104,7 +105,7 @@ deliver_sm(Node, Params) ->
 
 init(LSock) ->
     process_flag(trap_exit, true),
-    lager:debug("Node: initializing"),
+    ?log_debug("Node: initializing", []),
     {ok, SMPPLogMgr} = smpp_log_mgr:start_link(),
     pmm_smpp_logger_h:sup_add_to_manager(SMPPLogMgr),
     Timers = ?TIMERS(
@@ -158,7 +159,7 @@ terminate(Reason, St) ->
     ets:delete(St#st.prices_tab),
     ets:delete(St#st.providers_tab),
     ets:delete(St#st.features_tab),
-    lager:debug("Node: terminated (~p)", [Reason]).
+    ?log_debug("Node: terminated (~p)", [Reason]).
 
 handle_call({handle_accept, Addr}, _From, St) ->
     case fun_smpp_server:handle_accept(self(), Addr) of
@@ -189,7 +190,7 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
     try fun_smpp_server:handle_bind(self(), {St#st.addr, Type,
                                              CustomerId, UserId, Password}) of
         {ok, Params, Customer} ->
-            lager:debug(
+            ?log_debug(
                 "Node: bound (addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s)",
                 [St#st.addr, CustomerId, UserId, Password, Type]
             ),
@@ -237,7 +238,7 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
             {reply, {error, Error}, St}
     catch
         _:{timeout, _} ->
-            lager:error(
+            ?log_error(
                 "Node: bind request timed out "
                 "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s)",
                 [St#st.addr, CustomerId, UserId, Password, Type]
@@ -278,24 +279,24 @@ deliver_from_queue(St) ->
     end.
 
 handle_cast({handle_operation, submit_sm, SeqNum, Params}, St) ->
-    lager:debug("Node: got submit_sm request (~p)", [Params]),
+    ?log_debug("Node: got submit_sm request (~p)", [Params]),
     case handle_submit(SeqNum, Params, St) of
         ok ->
             {noreply, St};
         {error, ?E_CREDIT_LIMIT_EXCEEDED = Error, Details} ->
             gen_mc_session:reply(St#st.mc_session, {SeqNum, {error, Error}}),
-            lager:error("Node: ~s", [Details]),
+            ?log_error("Node: ~s", [Details]),
             fun_errors:record(St#st.uuid, Error),
             {stop, normal, St};
         {error, Error, Details} ->
             gen_mc_session:reply(St#st.mc_session, {SeqNum, {error, Error}}),
-            lager:error("Node: ~s", [Details]),
+            ?log_error("Node: ~s", [Details]),
             fun_errors:record(St#st.uuid, Error),
             {noreply, St}
     end;
 
 handle_cast({handle_operation, Cmd, SeqNum, _Params}, St) ->
-    lager:warning("Node: got unsupported request (~s)", [Cmd]),
+    ?log_warn("Node: got unsupported request (~s)", [Cmd]),
     fun_errors:record(St#st.uuid, ?ESME_RPROHIBITED),
     Reply = {error, ?ESME_RPROHIBITED},
     gen_mc_session:reply(St#st.mc_session, {SeqNum, Reply}),
@@ -323,11 +324,11 @@ handle_cast({handle_resp, Resp, Ref}, St) ->
     end;
 
 handle_cast(stop, St) ->
-    lager:debug("Node: stopping"),
+    ?log_debug("Node: stopping", []),
     {stop, normal, St};
 
 handle_cast(unbind, St) ->
-    lager:debug("Node: stopping"),
+    ?log_debug("Node: stopping", []),
     if
         is_pid(St#st.batch_runner) ->
             fun_batch_runner:stop(St#st.batch_runner),
@@ -653,7 +654,7 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
                     {error, ?ESME_RINVEXPIRY, "expired validity_period"};
                 Delta > St#st.max_validity andalso DoCutoff ->
                     NewVP = fmt_validity(St#st.max_validity),
-                    lager:warn(
+                    ?log_warn(
                         "Node: validity period cut off "
                         "(customer: ~s, user: ~s, orig vp: ~s, new vp: ~s)",
                         [St#st.customer_id, St#st.user_id, VP, NewVP]
@@ -670,10 +671,10 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
 step(check_billing, {SeqNum, Params}, St) ->
     case St#st.pay_type of
         postpaid ->
-            lager:debug("Node: send without billing"),
+            ?log_debug("Node: send without billing", []),
             step(request_credit, {SeqNum, Params}, St);
         prepaid ->
-            lager:debug("Node: send with billing"),
+            ?log_debug("Node: send with billing", []),
             step(billy_reserve, {SeqNum, Params}, St)
     end;
 
@@ -683,11 +684,11 @@ step(request_credit, {SeqNum, Params}, St) ->
     [{_, Price}] = ets:lookup(St#st.prices_tab, NetworkId),
     case fun_credit:request_credit(CustomerId, Price) of
         {allowed, CreditLeft} ->
-            lager:debug("Sending allowed. CustomerId: ~p, credit left: ~p",
+            ?log_debug("Sending allowed. CustomerId: ~p, credit left: ~p",
                 [CustomerId, CreditLeft]),
             step(accept, {SeqNum, Params}, St);
         {denied, CreditLeft} ->
-            lager:error("Sending denied. CustomerId, credit left: ~p",
+            ?log_error("Sending denied. CustomerId, credit left: ~p",
                 [CustomerId, CreditLeft]),
             {error, ?E_CREDIT_LIMIT_EXCEEDED, "credit limit is exceeded"}
     end;

@@ -16,6 +16,8 @@
          handle_info/2,
          code_change/3]).
 
+-include_lib("alley_common/include/logging.hrl").
+
 -record(st, {period             :: {integer(), integer(), integer()},
              total_used = 0     :: non_neg_integer(),
              total_max          :: pos_integer(),
@@ -48,7 +50,7 @@ unset_rps(CustomerId) ->
 
 init([]) ->
     process_flag(trap_exit, true),
-    lager:info("Throttle: initializing"),
+    ?log_info("Throttle: initializing", []),
     {ok, #st{
         total_used         = 0,
         total_max          = funnel_app:get_env(rps),
@@ -58,7 +60,7 @@ init([]) ->
 
 
 terminate(Reason, _St) ->
-    lager:info("Throttle: terminated (~p)", [Reason]).
+    ?log_info("Throttle: terminated (~p)", [Reason]).
 
 handle_call({is_allowed, CustomerId}, _From, St) ->
     G = funnel_conf:get(throttle_group_seconds),

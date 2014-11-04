@@ -1,14 +1,12 @@
 -module(fun_tracker).
 
-
 -include_lib("amqp_client/include/amqp_client.hrl").
+-include_lib("alley_common/include/logging.hrl").
 -include_lib("alley_dto/include/JustAsn.hrl").
 -include("helpers.hrl").
 -include("otp_records.hrl").
 
-
 -behaviour(gen_server2).
-
 
 %% API exports
 -export([start_link/0,
@@ -32,7 +30,6 @@
 
 %% internal exports
 -export([close_batches/3]).
-
 
 -define(CLOSE_BATCHES_INTERVAL, 500).
 
@@ -110,10 +107,9 @@ delete_batches(CustomerId, UserId, BatchIds) ->
 %% gen_server2 callback functions
 %% -------------------------------------------------------------------------
 
-
 init([]) ->
     process_flag(trap_exit, true),
-    lager:info("Tracker: initializing"),
+    ?log_info("Tracker: initializing", []),
     {ok, Toke} = toke_drv:start_link(),
     ok = toke_drv:new(Toke),
     ok = toke_drv:set_cache(Toke, 1000),
@@ -129,20 +125,18 @@ init([]) ->
             erlang:start_timer(?CLOSE_BATCHES_INTERVAL, self(), close_batches),
             {ok, #st{toke = Toke, amqp_chan = Chan}};
         {error_from_tokyo_cabinet, Reason} ->
-            lager:error("Tracker: ~s", [Reason]),
+            ?log_error("Tracker: ~s", [Reason]),
             toke_drv:delete(Toke),
             toke_drv:stop(Toke),
             {stop, Reason}
     end.
-
 
 terminate(Reason, St) ->
     toke_drv:close(St#st.toke),
     toke_drv:delete(St#st.toke),
     toke_drv:stop(St#st.toke),
     fun_amqp_pool:close_channel(St#st.amqp_chan),
-    lager:info("Tracker: terminated (~p)", [Reason]).
-
+    ?log_info("Tracker: terminated (~p)", [Reason]).
 
 handle_call({next_message_id, CustomerId, UserId}, _From, St) ->
     Key = ?TOKYO_MESSAGE_ID(CustomerId, UserId),
@@ -156,7 +150,6 @@ handle_call({next_message_id, CustomerId, UserId}, _From, St) ->
                 1
         end,
     {reply, Reply, St};
-
 
 handle_call({register_user, CustomerId, UserId}, _From, St) ->
     User  = list_to_binary([CustomerId, $:, UserId]),
@@ -174,7 +167,6 @@ handle_call({register_user, CustomerId, UserId}, _From, St) ->
             )
     end,
     {reply, ok, St};
-
 
 handle_call({open_batch, ConnectionId, CustomerId, UserId, Params}, _From, St) ->
 	%% Replaced uuid:generate/0 which generates (at least on Linux) random v4 UUIDs
@@ -263,24 +255,19 @@ handle_info(#'EXIT'{pid = Pid, reason = normal}, #st{batch_closer = Pid} = St) -
     erlang:start_timer(?CLOSE_BATCHES_INTERVAL, self(), close_batches),
     {noreply, St};
 
-
 %% batch closer exited with abnormal reason.
 handle_info(#'EXIT'{pid = Pid}, #st{batch_closer = Pid} = St) ->
     {stop, batch_closer, St};
 
-
 handle_info(#'DOWN'{pid = Pid}, #st{amqp_chan = Pid} = St) ->
     {stop, amqp_down, St}.
-
 
 code_change(_OldVsn, St, _Extra) ->
     {ok, St}.
 
-
 %% -------------------------------------------------------------------------
 %% Private functions
 %% -------------------------------------------------------------------------
-
 
 close_all_batches(Toke, Chan) ->
     CustomersUsers =
@@ -304,7 +291,6 @@ close_all_batches(Toke, Chan) ->
     close_batches(Toke, Chan, Batches),
     toke_drv:delete(Toke, ?TOKYO_USERS).
 
-
 close_batches(_Toke, _Chan, []) ->
     ok;
 close_batches(Toke, Chan, Batches) ->
@@ -323,7 +309,6 @@ close_batches(Toke, Chan, Batches) ->
     ),
     [ delete_user_batches(Toke, CustomerId, UserId, BatchIds) ||
         {{CustomerId, UserId}, BatchIds} <- UsersBatches ].
-
 
 publish_user_batch(Toke, Chan, BatchId) ->
     CommonBin = toke_drv:get(Toke, ?TOKYO_BATCH_COMMON(BatchId)),

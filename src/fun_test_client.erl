@@ -1,13 +1,11 @@
 -module(fun_test_client).
 
-
 -include("otp_records.hrl").
 -include_lib("oserl/include/oserl.hrl").
-
+-include_lib("alley_common/include/logging.hrl").
 
 -behaviour(gen_server).
 -behaviour(gen_esme_session).
-
 
 %% client exports
 -export([start/0,
@@ -18,7 +16,6 @@
          submit_sm/2,
          submit_multi/2]).
 
-
 %% gen_server exports
 -export([init/1,
          handle_call/3,
@@ -26,7 +23,6 @@
          handle_info/2,
          terminate/2,
          code_change/3]).
-
 
 %% gen_esme_session exports
 -export([handle_accept/2,
@@ -39,16 +35,13 @@
          handle_closed/2,
          handle_timeout/3]).
 
-
 -record(st, {esme_session :: pid(),
              smpp_log_mgr :: pid(),
              req_tab      :: ets:tid()}).
 
-
 %% -------------------------------------------------------------------------
 %% Client API
 %% -------------------------------------------------------------------------
-
 
 -spec start/0 :: () -> {'ok', pid()}.
 
@@ -189,7 +182,7 @@ handle_cast({handle_resp, Resp, Ref}, St) ->
 
 
 handle_cast({handle_deliver_sm, SeqNum, Params}, St) ->
-    lager:debug("test client: got deliver_sm (params: ~p)", [Params]),
+    ?log_debug("test client: got deliver_sm (params: ~p)", [Params]),
     Reply = {ok, []},
     gen_esme_session:reply(St#st.esme_session, {SeqNum, Reply}),
     {noreply, St};

@@ -10,7 +10,6 @@
         mnesia,
         amqp_client,
         gproc,
-        lager,
         rmql
     ]},
     {mod, {funnel_app, []}}
