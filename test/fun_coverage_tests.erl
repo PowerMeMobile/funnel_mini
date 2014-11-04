@@ -1,7 +1,7 @@
 -module(fun_coverage_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include("FunnelAsn.hrl").
+-include_lib("alley_dto/include/FunnelAsn.hrl").
 
 fun_coverage_test_() ->
     {setup,
@@ -50,12 +50,12 @@ test_to_international_other() ->
 test_flatten_networks() ->
     Networks = [#'Network'{id = "b8a55c6d-9ea6-43a8-bf70-b1c34eb4a8fe",
                            countryCode = "444",
-                           numbersLen = 12,
+                           numberLen = 12,
                            prefixes = ["296", "293"],
                            providerId = "123"},
                 #'Network'{id = "d9f043d7-8cb6-4a53-94a8-4789da444f18",
                            countryCode = "555",
-                           numbersLen = 13,
+                           numberLen = 13,
                            prefixes = ["2311", "3320"],
                            providerId = "456"}],
     ?assertEqual([{"444293", 12, "b8a55c6d-9ea6-43a8-bf70-b1c34eb4a8fe", "123"},
@@ -67,12 +67,12 @@ test_flatten_networks() ->
 test_fill_coverage_tab() ->
     Networks = [#'Network'{id = "b8a55c6d-9ea6-43a8-bf70-b1c34eb4a8fe",
                            countryCode = "444",
-                           numbersLen = 12,
+                           numberLen = 12,
                            prefixes = ["296", "293"],
                            providerId = "123"},
                 #'Network'{id = "d9f043d7-8cb6-4a53-94a8-4789da444f18",
                            countryCode = "555",
-                           numbersLen = 13,
+                           numberLen = 13,
                            prefixes = ["2311", "3320"],
                            providerId = "456"}],
     Tab = ets:new(coverage_tab, []),
@@ -101,17 +101,17 @@ test_which_network() ->
     funnel_conf:set(country_code, "999"),
     Networks = [#'Network'{id = "b8a55c6d-9ea6-43a8-bf70-b1c34eb4a8fe",
                            countryCode = "444",
-                           numbersLen = 12,
+                           numberLen = 12,
                            prefixes = ["296", "293"],
                            providerId = "123"},
                 #'Network'{id = "d9f043d7-8cb6-4a53-94a8-4789da444f18",
                            countryCode = "555",
-                           numbersLen = 0,
+                           numberLen = 0,
                            prefixes = ["2311", "3320"],
                            providerId = "123"},
                 #'Network'{id = "06561b4c-d7b2-4cab-b031-af2a90c31491",
                            countryCode = "999",
-                           numbersLen = 12,
+                           numberLen = 12,
                            prefixes = ["011", "083"],
                            providerId = "123"}],
     Tab = ets:new(coverage_tab, []),
