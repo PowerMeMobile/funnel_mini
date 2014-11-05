@@ -11,3 +11,4 @@ priv/mibs/*.bin
 priv/*.so
 mibs/.index
 rel/funnel_mini
+TAGS
