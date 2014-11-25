@@ -160,7 +160,7 @@ abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqr
 check "$BODY" 3 4
 
 echo "#"
-echo "# Check encoding 8 (ucs2 - 16-bit)"
+echo "# Check encoding 8 (ucs2 16-bit)"
 echo "#"
 
 # 70 symbols - 1 msg
