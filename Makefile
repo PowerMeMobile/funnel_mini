@@ -43,7 +43,7 @@ console:
 develop:
 	@./rel/$(NAME)/bin/funnel develop
 
-test:
+test: compile xref
 	@./rebar skip_deps=true eunit
 
 doc:

@@ -1,5 +1,5 @@
 language: erlang
-script: "make"
+script: "make test"
 otp_release:
   - R16B03-1
 notifications:
