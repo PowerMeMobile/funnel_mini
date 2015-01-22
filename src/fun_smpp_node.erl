@@ -33,10 +33,6 @@
 -include_lib("alley_dto/include/adto.hrl").
 -include_lib("alley_dto/include/FunnelAsn.hrl").
 
--ifdef(POWER_ALLEY).
--include_lib("billy_client/include/billy_client.hrl").
--endif.
-
 -ifdef(TEST).
 -compile(export_all).
 -endif.
@@ -671,30 +667,28 @@ step(validate_validity_period, {SeqNum, Params}, St) ->
 step(check_billing, {SeqNum, Params}, St) ->
     case St#st.pay_type of
         postpaid ->
-            ?log_debug("Node: send without billing", []),
+            ?log_debug("Node: send postpaid", []),
             step(request_credit, {SeqNum, Params}, St);
         prepaid ->
-            ?log_debug("Node: send with billing", []),
-            step(billy_reserve, {SeqNum, Params}, St)
+            ?log_debug("Node: send prepaid", []),
+            step(request_credit, {SeqNum, Params}, St)
     end;
 
 step(request_credit, {SeqNum, Params}, St) ->
     CustomerId = St#st.customer_uuid,
     NetworkId = ?gv(network_id, Params),
     [{_, Price}] = ets:lookup(St#st.prices_tab, NetworkId),
-    case fun_credit:request_credit(CustomerId, Price) of
+    case fun_credit:request_credit(list_to_binary(CustomerId), Price) of
         {allowed, CreditLeft} ->
             ?log_debug("Sending allowed. CustomerId: ~p, credit left: ~p",
                 [CustomerId, CreditLeft]),
-            step(accept, {SeqNum, Params}, St);
+            Params2 = [{price, Price}|Params],
+            step(accept, {SeqNum, Params2}, St);
         {denied, CreditLeft} ->
             ?log_error("Sending denied. CustomerId, credit left: ~p",
                 [CustomerId, CreditLeft]),
             {error, ?E_CREDIT_LIMIT_EXCEEDED, "credit limit is exceeded"}
     end;
-
-step(billy_reserve, {SeqNum, Params}, St) ->
-    billy_reserve({SeqNum, Params}, St);
 
 step(accept, {SeqNum, Params}, St) ->
     case ?gv(sar_msg_ref_num, Params) of
@@ -774,7 +768,7 @@ step(add_dest, {SeqNum, Params, FP, BatchId, Size}, St) ->
 %% -------------------------------------------------------------------------
 
 fill_coverage_tab(Networks, DefProvId, Tab) ->
-    Networks2 = adto_funnel:networks_to_dto(Networks),
+    Networks2 = adto_funnel:networks_to_v1(Networks),
     DefProvId2 =
         case DefProvId of
             undefined ->
@@ -785,8 +779,8 @@ fill_coverage_tab(Networks, DefProvId, Tab) ->
     alley_services_coverage:fill_coverage_tab(Networks2, DefProvId2, Tab).
 
 fill_prices_tab(Networks, Providers, DefProvId, Tab) ->
-    Networks2 = adto_funnel:networks_to_dto(Networks),
-    Providers2 = adto_funnel:providers_to_dto(Providers),
+    Networks2 = adto_funnel:networks_to_v1(Networks),
+    Providers2 = adto_funnel:providers_to_v1(Providers),
     DefProvId2 =
         case DefProvId of
             undefined ->
@@ -829,27 +823,6 @@ which_network(Params, Tab) ->
             },
             {binary_to_list(NetworkId), DestAddr3, binary_to_list(ProviderId)}
     end.
-
--ifdef(POWER_ALLEY).
-billy_reserve({SeqNum, Params}, St) ->
-    {ok, SessionId} = funnel_billy_session:get_session_id(),
-    case billy_client:reserve(SessionId, ?CLIENT_TYPE_FUNNEL,
-            list_to_binary(St#st.customer_uuid), list_to_binary(St#st.user_id),
-            ?SERVICE_TYPE_SMS_ON, 1) of
-        {accepted, TransactionId} ->
-            Result = step(accept, {SeqNum, Params}, St),
-            case Result of
-                ok            -> billy_client:commit(TransactionId);
-                {error, _, _} -> billy_client:rollback(TransactionId)
-            end,
-            Result;
-        {rejected, Reason} ->
-            {error, ?E_BILLING_REJECTED, io_lib:format("rejected by billy with: ~p", [Reason])}
-    end.
--else.
-billy_reserve({_SeqNum, _Params}, _St) ->
-    {error, ?ESME_RSUBMITFAIL, io_lib:format("prepaid is not supported", [])}.
--endif.
 
 reply(Pid, Reply) ->
     Pid ! {smpp_node_reply, Reply}.
