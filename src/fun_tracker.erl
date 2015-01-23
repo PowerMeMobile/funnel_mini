@@ -13,7 +13,7 @@
          next_message_id/2,
          register_user/2,
          open_batch/4,
-         add_dest/4,
+         add_dest_and_price/6,
          close_batch/3,
          get_partial_batches/1,
          delete_batches/3]).
@@ -75,13 +75,11 @@ open_batch(ConnectionId, CustomerId, UserId, Params) ->
     Request = {open_batch, ConnectionId, CustomerId, UserId, Params},
     gen_server2:call(?MODULE, Request, infinity).
 
-
--spec add_dest(binary(), string(), integer() | 'undefined',
-               {string(), integer(), integer()}) -> 'ok'.
-add_dest(BatchId, MsgId, RefNum, Dest) ->
+-spec add_dest_and_price(binary(), string(), integer() | undefined,
+               {string(), integer(), integer()}, string(), float()) -> ok.
+add_dest_and_price(BatchId, MsgId, RefNum, DestAddr, NetId, Price) ->
     gen_server2:call(?MODULE,
-        {add_dest, BatchId, MsgId, RefNum, Dest}, infinity).
-
+        {add_dest_and_price, BatchId, MsgId, RefNum, DestAddr, NetId, Price}, infinity).
 
 -spec close_batch(string(), string(), binary()) -> ok.
 close_batch(CustomerId, UserId, BatchId) ->
@@ -206,10 +204,10 @@ handle_call({open_batch, ConnectionId, CustomerId, UserId, Params}, _From, St) -
     toke_drv:insert(St#st.toke, ?TOKYO_BATCH_COMMON(UUID), JSON),
     {reply, UUID, St};
 
-handle_call({add_dest, BatchId, MsgId, RefNum, Dest}, _From, St) ->
-    {Addr, Ton, Npi} = Dest,
+handle_call({add_dest_and_price, BatchId, MsgId, RefNum, DestAddr, NetId, Price}, _From, St) ->
+    {Addr, Ton, Npi} = DestAddr,
     Entry = list_to_binary(lists:concat([
-        MsgId, ";", RefNum, ";", Addr, ";", Ton, ";", Npi, "/"
+        MsgId, ";", RefNum, ";", Addr, ";", Ton, ";", Npi, ";", NetId, ";", Price, "/"
     ])),
     toke_drv:insert_concat(St#st.toke, ?TOKYO_BATCH_DESTS(BatchId), Entry),
     {reply, ok, St};
@@ -320,7 +318,7 @@ publish_user_batch(Toke, Chan, BatchId) ->
             Prio = ?gv("priority", Common),
             Headers = [],
             Basic = #'P_basic'{
-                content_type = <<"SmsRequest">>,
+                content_type = <<"SmsRequest2">>,
                 delivery_mode = 2,
                 priority = Prio,
                 message_id = BatchId,
@@ -341,25 +339,35 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
     TS = ?gv("sar_total_segments", Common),
     SS = ?gv("sar_segment_seqnum", Common),
     Type = case TS =:= -1 andalso SS =:= -1 of true -> regular; false -> part end,
-    {MsgIds, DestAsns} = lists:foldl(
-        fun(Bin, {Ids, Asns}) ->
-            [MsgId, RefNum, Addr, Ton, Npi] =
+    {MsgIds, DestAsns, NetIds, Prices} = lists:foldl(
+        fun(Bin, {Ids, Asns, NetIds, Prices}) ->
+            [MsgId, RefNum, Addr, Ton, Npi | Rest] =
                 re:split(Bin, ";", [trim]),
+
             FA = #'FullAddr'{addr = Addr,
-                             ton = list_to_integer(binary_to_list(Ton)),
-                             npi = list_to_integer(binary_to_list(Npi))},
+                             ton = binary_to_integer(Ton),
+                             npi = binary_to_integer(Npi)},
+
+            {NetId, Price} =
+                case Rest of
+                    [] ->
+                        {"", 0};
+                    [NetId2, Price2] ->
+                        {NetId2, Price2}
+                end,
+
             case Type of
                 regular ->
-                    {[MsgId|Ids], [FA|Asns]};
+                    {[MsgId|Ids], [FA|Asns], [NetId|NetIds], [Price|Prices]};
                 part ->
                     {[MsgId|Ids],
-                     [#'FullAddrAndRefNum'{
-                          fullAddr = FA,
-                          refNum = list_to_integer(binary_to_list(RefNum))
-                      }|Asns]}
+                     [#'FullAddrAndRefNum'{fullAddr = FA,
+                                           refNum = binary_to_integer(RefNum)}|Asns],
+                     [NetId|NetIds],
+                     [Price|Prices]}
             end
         end,
-        {[], []},
+        {[], [], [], []},
         Dests
     ),
     ParamsBase = [{registered_delivery, ?gv("registered_delivery", Common) > 0},
@@ -409,7 +417,9 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
             npi = ?gv("source_addr_npi", Common)
         },
         destAddrs = {Type, DestAsns},
-        messageIds = MsgIds
+        messageIds = MsgIds,
+        networkIds = NetIds,
+        prices = Prices
     },
     {ok, EncodedReq} = 'JustAsn':encode('SmsRequest', ReqAsn),
     EncodedReq.

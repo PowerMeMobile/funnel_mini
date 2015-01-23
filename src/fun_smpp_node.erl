@@ -363,9 +363,10 @@ handle_info(#timeout{msg = close_batches}, St) ->
     lists:foreach(fun(Key) -> ets:delete(St#st.parts_tab, Key) end, Keys),
     lists:foreach(fun({CommonBin, DestBin}) ->
                       Params = unparse_common(CommonBin),
-                      {MsgId, RefNum, Addr} = unparse_dest(DestBin),
+                      {MsgId, RefNum, DestAddr, NetId, Price} =
+                          unparse_dest_and_price(DestBin),
                       reinsert(Params, MsgId, RefNum,
-                               {Addr, ?TON_INTERNATIONAL, ?NPI_ISDN}, St)
+                               DestAddr, NetId, Price, St)
                   end, fun_tracker:get_partial_batches(BatchIds)),
     fun_tracker:delete_batches(St#st.customer_id, St#st.user_id, BatchIds),
     % close batches
@@ -705,8 +706,11 @@ step(concat_parts, {SeqNum, Params}, St) ->
         BatchId ->
             TS = fun_time:milliseconds(),
             MsgId = next_message_id(St),
-            fun_tracker:add_dest(BatchId, MsgId, ?gv(sar_msg_ref_num, Params),
-                                 dest_addr(Params)),
+            DestAddr = dest_addr(Params),
+            NetId = ?KEYFIND2(network_id, Params),
+            Price = ?KEYFIND2(price, Params),
+            fun_tracker:add_dest_and_price(BatchId, MsgId,
+                ?gv(sar_msg_ref_num, Params), DestAddr, NetId, Price),
             Key = part_key(Params),
             SegNum = ?gv(sar_segment_seqnum, Params),
             case ets:lookup(St#st.parts_tab, Key) of
@@ -734,7 +738,7 @@ step(take_fingerprints, {SeqNum, Params}, St) ->
         [] ->
             step(open_batch, {SeqNum, Params, FP}, St);
         [{FP, BatchId, _LastInsert, Size}] ->
-            step(add_dest, {SeqNum, Params, FP, BatchId, Size}, St)
+            step(add_dest_and_price, {SeqNum, Params, FP, BatchId, Size}, St)
     end;
 
 step(open_batch, {SeqNum, Params, FP}, St) ->
@@ -742,14 +746,17 @@ step(open_batch, {SeqNum, Params, FP}, St) ->
         {error, bad_message} ->
             {error, ?ESME_RINVDCS, "bad data coding"};
         ID ->
-            step(add_dest, {SeqNum, Params, FP, ID, 0}, St)
+            step(add_dest_and_price, {SeqNum, Params, FP, ID, 0}, St)
     end;
 
-step(add_dest, {SeqNum, Params, FP, BatchId, Size}, St) ->
+step(add_dest_and_price, {SeqNum, Params, FP, BatchId, Size}, St) ->
     TS = fun_time:milliseconds(),
     MsgId = next_message_id(St),
-    fun_tracker:add_dest(BatchId, MsgId, ?KEYFIND3(sar_msg_ref_num, Params, -1),
-                         dest_addr(Params)),
+    DestAddr = dest_addr(Params),
+    NetId = ?KEYFIND2(network_id, Params),
+    Price = ?KEYFIND2(price, Params),
+    fun_tracker:add_dest_and_price(BatchId, MsgId,
+        ?KEYFIND3(sar_msg_ref_num, Params, -1), DestAddr, NetId, Price),
     MaxSize = funnel_conf:get(batch_max_size),
     if
         Size + 1 >= MaxSize ->
@@ -934,17 +941,17 @@ join_batches(Ids, St) ->
                           proplists:delete(sar_segment_seqnum,
                                             proplists:delete(sar_total_segments,
                                                              hd(Commons)))),
-    Dests = [ unparse_dest(DestBin) || {_, DestBin} <- CommonsDests ],
-    Addr = {element(3, hd(Dests)), ?TON_INTERNATIONAL, ?NPI_ISDN},
-    MsgId = string:join([ Id || {Id, _, _} <- Dests ], ":"),
-    reinsert(Params, MsgId, -1, Addr, St),
+    DestAndPrices = [ unparse_dest_and_price(DestBin) || {_, DestBin} <- CommonsDests ],
+    [{_, _, DestAddr, NetId, Price}|_] = DestAndPrices,
+    MsgId = string:join([ Id || {Id, _, _, _, _} <- DestAndPrices ], ":"),
+    reinsert(Params, MsgId, -1, DestAddr, NetId, Price, St),
     fun_tracker:delete_batches(St#st.customer_id, St#st.user_id,
                                [ ID || {_, ID} <- Ids ]).
 
 join_messages(Msgs) ->
     lists:flatten([ if is_binary(M) -> binary_to_list(M); true -> M end || M <- Msgs ]).
 
-reinsert(Params, MsgId, RefNum, Addr, St) ->
+reinsert(Params, MsgId, RefNum, DestAddr, NetId, Price, St) ->
     FP = take_fingerprints(Params),
     {BatchId, Size} =
         case ets:lookup(St#st.batch_tab, FP) of
@@ -956,7 +963,7 @@ reinsert(Params, MsgId, RefNum, Addr, St) ->
                 {BId, S}
         end,
     TS = fun_time:milliseconds(),
-    fun_tracker:add_dest(BatchId, MsgId, RefNum, Addr),
+    fun_tracker:add_dest_and_price(BatchId, MsgId, RefNum, DestAddr, NetId, Price),
     MaxSize = funnel_conf:get(batch_max_size),
     if
         Size + 1 >= MaxSize ->
@@ -989,9 +996,13 @@ unparse_common(CommonBin) ->
     {ok, {obj, Common}, []} = rfc4627:decode(CommonBin),
     [ {list_to_atom(K), V} || {K, V} <- Common ].
 
-unparse_dest(DestBin) ->
-    [MsgId, RefNum, Addr, _, _] = re:split(DestBin, ";", [{return, list}]),
-    {MsgId, list_to_integer(RefNum), Addr}.
+unparse_dest_and_price(DestBin) ->
+    case re:split(DestBin, ";", [{return, list}]) of
+        [MsgId, RefNum, Addr, Ton, Npi] ->
+            {MsgId, list_to_integer(RefNum), {Addr, Ton, Npi}, "", 0};
+        [MsgId, RefNum, Addr, Ton, Npi, NetId, Price] ->
+            {MsgId, list_to_integer(RefNum), {Addr, Ton, Npi}, NetId, Price}
+    end.
 
 fmt_validity(SecondsTotal) ->
     MinutesTotal = SecondsTotal div 60,
