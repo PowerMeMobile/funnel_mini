@@ -58,26 +58,19 @@
 %% -------------------------------------------------------------------------
 
 
--spec start_link/0 :: () -> {'ok', pid()} | 'ignore' | {'error', any()}.
-
+-spec start_link() -> {ok, pid()} | ignore | {error, any()}.
 start_link() ->
     gen_server2:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-
--spec next_message_id/2 :: (string(), string()) -> pos_integer().
-
+-spec next_message_id(string(), string()) -> pos_integer().
 next_message_id(CustomerId, UserId) ->
     gen_server2:call(?MODULE, {next_message_id, CustomerId, UserId}, infinity).
 
-
--spec register_user/2 :: (string(), string()) -> 'ok'.
-
+-spec register_user(string(), string()) -> ok.
 register_user(CustomerId, UserId) ->
     gen_server2:call(?MODULE, {register_user, CustomerId, UserId}, infinity).
 
-
--spec open_batch/4 :: (string(), string(), string(), list()) -> binary().
-
+-spec open_batch(string(), string(), string(), list()) -> binary().
 open_batch(ConnectionId, CustomerId, UserId, Params) ->
     Request = {open_batch, ConnectionId, CustomerId, UserId, Params},
     gen_server2:call(?MODULE, Request, infinity).
@@ -90,8 +83,7 @@ add_dest(BatchId, MsgId, RefNum, Dest) ->
         {add_dest, BatchId, MsgId, RefNum, Dest}, infinity).
 
 
--spec close_batch/3 :: (string(), string(), binary()) -> 'ok'.
-
+-spec close_batch(string(), string(), binary()) -> ok.
 close_batch(CustomerId, UserId, BatchId) ->
     gen_server2:cast(?MODULE, {close_batch, CustomerId, UserId, BatchId}).
 
@@ -99,7 +91,7 @@ close_batch(CustomerId, UserId, BatchId) ->
 get_partial_batches(BatchIds) ->
     gen_server2:call(?MODULE, {get_partial_batches, BatchIds}, infinity).
 
--spec delete_batches(string(), string(), [binary()]) -> 'ok'.
+-spec delete_batches(string(), string(), [binary()]) -> ok.
 delete_batches(CustomerId, UserId, BatchIds) ->
     gen_server2:cast(?MODULE, {delete_batches, CustomerId, UserId, BatchIds}).
 
