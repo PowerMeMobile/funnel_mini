@@ -54,7 +54,6 @@
              batch_tab        :: ets:tid(),
              parts_tab        :: ets:tid(),
              coverage_tab     :: ets:tid(),
-             prices_tab       :: ets:tid(),
              req_tab          :: ets:tid(),
              deliver_queue    :: queue(),
              addr             :: string(),
@@ -119,7 +118,6 @@ init(LSock) ->
         batch_tab    = ets:new(batch_tab, []),
         parts_tab    = ets:new(parts_tab, []),
         coverage_tab = ets:new(coverage_tab, []),
-        prices_tab   = ets:new(prices_tab, []),
         req_tab      = ets:new(req_tab, []),
         deliver_queue = queue:new(),
         providers_tab = ets:new(providers, [{keypos, #'Provider'.id}]),
@@ -152,7 +150,6 @@ terminate(Reason, St) ->
     ets:delete(St#st.parts_tab),
     ets:delete(St#st.req_tab),
     ets:delete(St#st.coverage_tab),
-    ets:delete(St#st.prices_tab),
     ets:delete(St#st.providers_tab),
     ets:delete(St#st.features_tab),
     ?log_debug("Node: terminated (~p)", [Reason]).
@@ -195,8 +192,8 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
             Providers = ?gv(providers, Customer),
             DefProvId = ?gv(default_provider_id, Customer),
             Features = ?gv(features, Customer),
-            fill_coverage_tab(Networks, DefProvId, St#st.coverage_tab),
-            fill_prices_tab(Networks, Providers, DefProvId, St#st.prices_tab),
+            fill_coverage_tab(
+                Networks, Providers, DefProvId, St#st.coverage_tab),
             fill_providers_tab(Providers, St#st.providers_tab),
             fill_features_tab(Features, St#st.features_tab),
             Runner =
@@ -474,7 +471,7 @@ step(throttle, {SeqNum, Params}, St) ->
 
 step(verify_coverage, {SeqNum, Params}, St) ->
     case which_network(Params, St#st.coverage_tab) of
-        {NetworkId, DestAddr, ProviderId} ->
+        {NetId, DestAddr, ProvId, Price} ->
             DestDigits = DestAddr#addr.addr,
             DestTon    = DestAddr#addr.ton,
             DestNpi    = DestAddr#addr.npi,
@@ -482,7 +479,11 @@ step(verify_coverage, {SeqNum, Params}, St) ->
                 ?KEYREPLACE3(destination_addr, DestDigits,
                     ?KEYREPLACE3(dest_addr_ton, DestTon,
                         ?KEYREPLACE3(dest_addr_npi, DestNpi, Params))),
-            Params2 = [{network_id, NetworkId}, {provider_id, ProviderId}|Params1],
+            Params2 = [
+                {network_id, NetId},
+                {provider_id, ProvId},
+                {price, Price}
+                | Params1],
             step(tlv_params, {SeqNum, Params2}, St);
         undefined ->
             {error, ?ESME_RINVDSTADR, "invalid destination_addr"}
@@ -677,14 +678,12 @@ step(check_billing, {SeqNum, Params}, St) ->
 
 step(request_credit, {SeqNum, Params}, St) ->
     CustomerId = St#st.customer_uuid,
-    NetworkId = ?gv(network_id, Params),
-    [{_, Price}] = ets:lookup(St#st.prices_tab, NetworkId),
+    Price = ?gv(price, Params),
     case fun_credit:request_credit(list_to_binary(CustomerId), Price) of
         {allowed, CreditLeft} ->
             ?log_debug("Sending allowed. CustomerId: ~p, credit left: ~p",
                 [CustomerId, CreditLeft]),
-            Params2 = [{price, Price}|Params],
-            step(accept, {SeqNum, Params2}, St);
+            step(accept, {SeqNum, Params}, St);
         {denied, CreditLeft} ->
             ?log_error("Sending denied. CustomerId, credit left: ~p",
                 [CustomerId, CreditLeft]),
@@ -774,18 +773,7 @@ step(add_dest_and_price, {SeqNum, Params, FP, BatchId, Size}, St) ->
 %% private functions
 %% -------------------------------------------------------------------------
 
-fill_coverage_tab(Networks, DefProvId, Tab) ->
-    Networks2 = adto_funnel:networks_to_v1(Networks),
-    DefProvId2 =
-        case DefProvId of
-            undefined ->
-                undefined;
-            DefProvId when is_list(DefProvId) ->
-                list_to_binary(DefProvId)
-        end,
-    alley_services_coverage:fill_coverage_tab(Networks2, DefProvId2, Tab).
-
-fill_prices_tab(Networks, Providers, DefProvId, Tab) ->
+fill_coverage_tab(Networks, Providers, DefProvId, Tab) ->
     Networks2 = adto_funnel:networks_to_v1(Networks),
     Providers2 = adto_funnel:providers_to_v1(Providers),
     DefProvId2 =
@@ -795,11 +783,8 @@ fill_prices_tab(Networks, Providers, DefProvId, Tab) ->
             DefProvId when is_list(DefProvId) ->
                 list_to_binary(DefProvId)
         end,
-    PricesMap = alley_services_coverage:build_network_to_sms_price_map(
-        Networks2, Providers2, DefProvId2),
-    PricesMap2 =
-        [{binary_to_list(NetworkId), Price} || {NetworkId, Price} <- PricesMap],
-    ets:insert(Tab, PricesMap2).
+    alley_services_coverage:fill_coverage_tab(
+        Networks2, Providers2, DefProvId2, Tab).
 
 fill_providers_tab(Providers, Tab) ->
     [ets:insert(Tab, P) || P <- Providers].
@@ -824,11 +809,11 @@ which_network(Params, Tab) ->
     case alley_services_coverage:which_network(DestAddr, Tab) of
         undefined ->
             undefined;
-        {NetworkId, DestAddr2, ProviderId} ->
+        {NetId, DestAddr2, ProvId, Price} ->
             DestAddr3 = DestAddr2#addr{
                 addr = binary_to_list(DestAddr2#addr.addr)
             },
-            {binary_to_list(NetworkId), DestAddr3, binary_to_list(ProviderId)}
+            {binary_to_list(NetId), DestAddr3, binary_to_list(ProvId), Price}
     end.
 
 reply(Pid, Reply) ->
