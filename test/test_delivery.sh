@@ -20,6 +20,14 @@ SMPPSIM_SERVER="http://${SMPPSIM_HOST-$HOST}:${SMPPSIM_PORT-8071}"
 
 EXIT=0
 
+function cleanup() {
+    # this will bind only and hopefully receive left receipts.
+    for i in `seq 1 5`; do
+        smppload --host=$HOST --port=$PORT --system_type=$SYSTEM_TYPE --system_id=$SYSTEM_ID --password=$PASSWORD -c0 -v0
+        sleep 1
+    done
+}
+
 function check() {
     local command="$1"
     local delivery="$2"
@@ -62,6 +70,12 @@ source_addr_ton=1&source_addr_npi=0&dest_addr_ton=1&dest_addr_npi=1"
 
     curl -s "$url" > /dev/null
 }
+
+echo "#"
+echo "# Clean up"
+echo "#"
+
+cleanup
 
 echo "#"
 echo "# Check delivery statuses"
