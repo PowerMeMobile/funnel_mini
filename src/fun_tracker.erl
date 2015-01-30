@@ -206,8 +206,9 @@ handle_call({open_batch, ConnectionId, CustomerId, UserId, Params}, _From, St) -
 
 handle_call({add_dest_and_price, BatchId, MsgId, RefNum, DestAddr, NetId, Price}, _From, St) ->
     {Addr, Ton, Npi} = DestAddr,
+    Price2 = float_to_list(Price, [{decimals, 2}, compact]),
     Entry = list_to_binary(lists:concat([
-        MsgId, ";", RefNum, ";", Addr, ";", Ton, ";", Npi, ";", NetId, ";", Price, "/"
+        MsgId, ";", RefNum, ";", Addr, ";", Ton, ";", Npi, ";", NetId, ";", Price2, "/"
     ])),
     toke_drv:insert_concat(St#st.toke, ?TOKYO_BATCH_DESTS(BatchId), Entry),
     {reply, ok, St};

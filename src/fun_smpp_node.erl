@@ -984,9 +984,16 @@ unparse_common(CommonBin) ->
 unparse_dest_and_price(DestBin) ->
     case re:split(DestBin, ";", [{return, list}]) of
         [MsgId, RefNum, Addr, Ton, Npi] ->
-            {MsgId, list_to_integer(RefNum), {Addr, Ton, Npi}, "", 0};
+            RefNum2 = list_to_integer(RefNum),
+            Ton2 = list_to_integer(Ton),
+            Npi2 = list_to_integer(string:strip(Npi, right, $/)),
+            {MsgId, RefNum2, {Addr, Ton2, Npi2}, "", 0.0};
         [MsgId, RefNum, Addr, Ton, Npi, NetId, Price] ->
-            {MsgId, list_to_integer(RefNum), {Addr, Ton, Npi}, NetId, Price}
+            RefNum2 = list_to_integer(RefNum),
+            Ton2 = list_to_integer(Ton),
+            Npi2 = list_to_integer(Npi),
+            Price2 = list_to_float(string:strip(Price, right, $/)),
+            {MsgId, RefNum2, {Addr, Ton2, Npi2}, NetId, Price2}
     end.
 
 fmt_validity(SecondsTotal) ->
