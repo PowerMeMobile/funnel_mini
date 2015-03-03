@@ -14,7 +14,7 @@ HOST=${FUNNEL_HOST-127.0.0.1}
 PORT=${FUNNEL_PORT-2775}
 SYSTEM_TYPE=''
 SYSTEM_ID=user
-PASSWORD=password
+PASSWORD=PasSworD
 SRC_ADDR=375296660001
 DST_ADDR=375296543210
 
@@ -31,6 +31,18 @@ function cleanup() {
         smppload --host=$HOST --port=$PORT --system_type=$SYSTEM_TYPE --system_id=$SYSTEM_ID --password=$PASSWORD -c0 -v0
         sleep 1
     done
+}
+
+function check_bind() {
+    local password="$1"
+
+    `smppload --host=$HOST --port=$PORT --system_type=$SYSTEM_TYPE --system_id=$SYSTEM_ID --password=$password -c0 -v | grep 'Bound to' > /dev/null`
+    if [[ "$?" == 0 ]]; then
+        echo -e "$password\t\e[32mOK\e[0m"
+    else
+        echo -e "$password\t\e[31mFAIL\e[0m"
+        EXIT=1
+    fi
 }
 
 function check() {
@@ -58,6 +70,10 @@ echo "# Clean up"
 echo "#"
 
 cleanup
+
+check_bind ${PASSWORD}
+check_bind ${PASSWORD,,}
+check_bind ${PASSWORD^^}
 
 BODY="\
 abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz\
