@@ -681,11 +681,11 @@ step(request_credit, {SeqNum, Params}, St) ->
     Price = ?gv(price, Params),
     case fun_credit:request_credit(list_to_binary(CustomerId), Price) of
         {allowed, CreditLeft} ->
-            ?log_debug("Sending allowed. CustomerId: ~p, credit left: ~p",
+            ?log_debug("Sending allowed. CustomerId: ~s, credit left: ~p",
                 [CustomerId, CreditLeft]),
             step(accept, {SeqNum, Params}, St);
         {denied, CreditLeft} ->
-            ?log_error("Sending denied. CustomerId, credit left: ~p",
+            ?log_error("Sending denied. CustomerId: ~s, credit left: ~p",
                 [CustomerId, CreditLeft]),
             {error, ?E_CREDIT_LIMIT_EXCEEDED, "credit limit is exceeded"}
     end;
