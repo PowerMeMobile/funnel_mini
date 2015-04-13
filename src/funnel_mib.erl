@@ -165,7 +165,7 @@ settings(set, Value, Key) ->
 %% -------------------------------------------------------------------------
 
 complete_connections_row(
-        {Id, UUID, ConnectedAt, Type, Addr, CustomerId, UserId}, Slices) ->
+        {Id, UUID, ConnectedAt, Type, Addr, CustomerId, UserId, _NodePid}, Slices) ->
     DateTime = snmp:universal_time_to_date_and_time(ConnectedAt),
     ErrorCount = length(fun_errors:lookup(UUID)),
     TP =

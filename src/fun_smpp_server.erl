@@ -216,13 +216,14 @@ handle_call(connections, _From, St) ->
         fun(#node{
                 id           = ID,
                 uuid         = UUID,
+                pid          = NodePid,
                 connected_at = ConnectedAt,
                 type         = Type,
                 addr         = Addr,
                 customer_id  = CustomerId,
                 user_id      = UserId
             }) ->
-                {ID, UUID, ConnectedAt, Type, Addr, CustomerId, UserId}
+                {ID, UUID, ConnectedAt, Type, Addr, CustomerId, UserId, NodePid}
         end, bound_nodes(St#st.nodes)
     ),
     {reply, Reply, St}.
