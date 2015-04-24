@@ -4,6 +4,7 @@
 -include_lib("amqp_client/include/amqp_client.hrl").
 -include_lib("alley_common/include/logging.hrl").
 -include_lib("alley_dto/include/FunnelAsn.hrl").
+-include_lib("alley_dto/include/adto.hrl").
 -include("otp_records.hrl").
 
 -behaviour(gen_server).
@@ -553,6 +554,25 @@ handle_basic_deliver(<<"ConnectionsRequest">>, _Payload, Props, St) ->
     fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespPayload, RespProps),
     {noreply, St};
 
+handle_basic_deliver(<<"ConnectionsReqV1">>, ReqBin, Props, St) ->
+    {ok, Req = #connections_req_v1{req_id = ReqId}} =
+        adto:decode(#connections_req_v1{}, ReqBin),
+    ?log_debug("Server: got ~p", [Req]),
+    Conns = [build_connection_v1(N) || #node{state = bound} = N <- St#st.nodes],
+    Resp = #connections_resp_v1{
+        req_id = ReqId,
+        connections = lists:keysort(#connection_v1.connected_at, Conns)
+    },
+    {ok, RespBin} = adto:encode(Resp),
+    #'P_basic'{message_id = MsgId, reply_to = ReplyTo} = Props,
+    RespProps = #'P_basic'{
+        content_type   = <<"ConnectionsRespV1">>,
+        correlation_id = MsgId,
+        message_id = uuid:unparse(uuid:generate())
+    },
+    fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespBin, RespProps),
+    {noreply, St};
+
 handle_basic_deliver(<<"ThroughputRequest">>, _Payload, Props, St) ->
     ?log_debug("Server: got throughput request", []),
     Slices = lists:map(
@@ -582,6 +602,34 @@ handle_basic_deliver(<<"ThroughputRequest">>, _Payload, Props, St) ->
     },
     fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespPayload, RespProps),
     {noreply, St}.
+
+build_connection_v1(Node) ->
+    {Received, Sent} = fun_throughput:totals(Node#node.uuid),
+    Errors = lists:map(fun({TS, Error}) ->
+        #connection_error_v1{
+            error_code = Error,
+            timestamp = ac_datetime:utc_string_to_timestamp(TS)
+        }
+        end, fun_errors:lookup(Node#node.uuid)),
+    ConnectedAtUTC =
+        case calendar:local_time_to_universal_time_dst(Node#node.connected_at) of
+            [_DstDateTimeUTC, DateTimeUTC] ->
+                DateTimeUTC;
+            [DateTimeUTC] ->
+                DateTimeUTC
+        end,
+    {ok, RemoteIP} = inet:parse_address(Node#node.addr),
+    #connection_v1{
+        connection_id = list_to_binary(Node#node.uuid),
+        remote_ip = RemoteIP,
+        customer_id = list_to_binary(Node#node.customer_id),
+        user_id = list_to_binary(Node#node.user_id),
+        connected_at = ac_datetime:datetime_to_timestamp(ConnectedAtUTC),
+        bind_type = Node#node.type,
+        msgs_received = Received,
+        msgs_sent = Sent,
+        errors = Errors
+    }.
 
 request_backend_auth(Chan, UUID, Addr, CustomerId, UserId, Password, Type, Timeout) ->
     Cached = alley_services_auth_cache:fetch(CustomerId, UserId, Type, Password),
