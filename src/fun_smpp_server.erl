@@ -573,6 +573,58 @@ handle_basic_deliver(<<"ConnectionsReqV1">>, ReqBin, Props, St) ->
     fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespBin, RespProps),
     {noreply, St};
 
+handle_basic_deliver(<<"DisconnectReqV1">>, ReqBin, Props, St) ->
+    {ok, Req = #disconnect_req_v1{req_id = ReqId}} =
+        adto:decode(#disconnect_req_v1{}, ReqBin),
+    ?log_debug("Server: got ~p", [Req]),
+    #disconnect_req_v1{
+        customer_id   = CustomerId,
+        user_id       = UserId,
+        bind_type     = BindType,
+        connection_id = ConnectionId
+    } = Req,
+    ChkCust = fun(undefined, _) -> true;
+                 (CID, N) -> N#node.customer_id =:= binary_to_list(CID)
+              end,
+    ChkUser = fun(undefined, _) -> true;
+                 (UID, N) -> N#node.user_id =:= binary_to_list(UID)
+              end,
+    ChkType = fun(undefined, _) -> true;
+                 (Type, N) -> N#node.type =:= Type
+              end,
+    ChkConn = fun(undefined, _) -> true;
+                 (CID, N) -> N#node.uuid =:= binary_to_list(CID)
+              end,
+    Nodes = [
+        N || N <- St#st.nodes,
+        ChkCust(CustomerId, N) andalso
+        ChkUser(UserId, N) andalso
+        ChkType(BindType, N) andalso
+        ChkConn(ConnectionId, N)
+    ],
+    lists:foreach(
+        fun(#node{uuid = UUID, pid = Pid, type = Type,
+                  customer_id = CID, user_id = UID, password = Password}) ->
+                fun_smpp_node:unbind(Pid),
+                alley_services_auth_cache:delete(CID, UID, Type, Password),
+                ?log_info("Server: unbinding a client "
+                          "(uuid: ~s, customer: ~s, user: ~s)",
+                          [UUID, CID, UID])
+        end, Nodes
+    ),
+    Resp = #disconnect_resp_v1{
+        req_id = ReqId
+    },
+    {ok, RespBin} = adto:encode(Resp),
+    #'P_basic'{message_id = MsgId, reply_to = ReplyTo} = Props,
+    RespProps = #'P_basic'{
+        content_type   = <<"DisconnectRespV1">>,
+        correlation_id = MsgId,
+        message_id = uuid:unparse(uuid:generate())
+    },
+    fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespBin, RespProps),
+    {noreply, St};
+
 handle_basic_deliver(<<"ThroughputRequest">>, _Payload, Props, St) ->
     ?log_debug("Server: got throughput request", []),
     Slices = lists:map(
