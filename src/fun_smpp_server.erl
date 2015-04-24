@@ -568,7 +568,7 @@ handle_basic_deliver(<<"ConnectionsReqV1">>, ReqBin, Props, St) ->
     RespProps = #'P_basic'{
         content_type   = <<"ConnectionsRespV1">>,
         correlation_id = MsgId,
-        message_id = uuid:unparse(uuid:generate())
+        message_id     = uuid:unparse(uuid:generate())
     },
     fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespBin, RespProps),
     {noreply, St};
@@ -705,10 +705,10 @@ request_backend_auth(Chan, UUID, Addr, CustomerId, UserId, Password, Type, Timeo
     {ok, Payload} = 'FunnelAsn':encode('BindRequest', BindRequest),
     RoutingKey = funnel_app:get_env(queue_backend_auth),
     Props = #'P_basic'{
-        content_type = <<"BindRequest">>,
+        content_type  = <<"BindRequest">>,
         delivery_mode = 2,
-        message_id   = uuid:unparse(uuid:generate()),
-        reply_to     = funnel_app:get_env(queue_server_control)
+        message_id    = uuid:unparse(uuid:generate()),
+        reply_to      = funnel_app:get_env(queue_server_control)
     },
     fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
 
