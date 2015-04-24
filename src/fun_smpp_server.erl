@@ -554,6 +554,36 @@ handle_basic_deliver(<<"ConnectionsRequest">>, _Payload, Props, St) ->
     fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespPayload, RespProps),
     {noreply, St};
 
+handle_basic_deliver(<<"ThroughputRequest">>, _Payload, Props, St) ->
+    ?log_debug("Server: got throughput request", []),
+    Slices = lists:map(
+        fun({PeriodStart, Counters}) ->
+                #'Slice'{
+                    periodStart = PeriodStart,
+                    counters    =
+                        lists:map(
+                            fun({ConnectionId, Direction, Count}) ->
+                                    #'Counter'{
+                                        connectionId = ConnectionId,
+                                        direction    = Direction,
+                                        count        = Count
+                                    }
+                            end, Counters
+                        )
+                }
+        end, fun_throughput:slices()
+    ),
+    Response = #'ThroughputResponse'{slices = Slices},
+    {ok, RespPayload} = 'FunnelAsn':encode('ThroughputResponse', Response),
+    #'P_basic'{message_id = MsgId, reply_to = ReplyTo} = Props,
+    RespProps = #'P_basic'{
+        content_type   = <<"ThroughputResponse">>,
+        correlation_id = MsgId,
+        message_id     = uuid:unparse(uuid:generate())
+    },
+    fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespPayload, RespProps),
+    {noreply, St};
+
 handle_basic_deliver(<<"ConnectionsReqV1">>, ReqBin, Props, St) ->
     {ok, Req = #connections_req_v1{req_id = ReqId}} =
         adto:decode(#connections_req_v1{}, ReqBin),
@@ -620,39 +650,41 @@ handle_basic_deliver(<<"DisconnectReqV1">>, ReqBin, Props, St) ->
     RespProps = #'P_basic'{
         content_type   = <<"DisconnectRespV1">>,
         correlation_id = MsgId,
-        message_id = uuid:unparse(uuid:generate())
+        message_id     = uuid:unparse(uuid:generate())
     },
     fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespBin, RespProps),
     {noreply, St};
 
-handle_basic_deliver(<<"ThroughputRequest">>, _Payload, Props, St) ->
-    ?log_debug("Server: got throughput request", []),
+handle_basic_deliver(<<"ThroughputReqV1">>, ReqBin, Props, St) ->
+    {ok, Req = #throughput_req_v1{req_id = ReqId}} =
+        adto:decode(#throughput_req_v1{}, ReqBin),
+    ?log_debug("Server: got ~p", [Req]),
     Slices = lists:map(
         fun({PeriodStart, Counters}) ->
-                #'Slice'{
-                    periodStart = PeriodStart,
-                    counters    =
-                        lists:map(
-                            fun({ConnectionId, Direction, Count}) ->
-                                    #'Counter'{
-                                        connectionId = ConnectionId,
-                                        direction    = Direction,
-                                        count        = Count
-                                    }
-                            end, Counters
-                        )
-                }
+            #throughput_slice_v1{
+                period_start = ac_datetime:utc_string_to_timestamp(PeriodStart),
+                counters = lists:map(fun({ConnectionId, Direction, Count}) ->
+                    #throughput_counter_v1{
+                        connection_id = list_to_binary(ConnectionId),
+                        direction = Direction,
+                        count = Count
+                    }
+                end, Counters)
+            }
         end, fun_throughput:slices()
     ),
-    Response = #'ThroughputResponse'{slices = Slices},
-    {ok, RespPayload} = 'FunnelAsn':encode('ThroughputResponse', Response),
+    Resp = #throughput_resp_v1{
+        req_id = ReqId,
+        slices = Slices
+    },
+    {ok, RespBin} = adto:encode(Resp),
     #'P_basic'{message_id = MsgId, reply_to = ReplyTo} = Props,
     RespProps = #'P_basic'{
-        content_type   = <<"ThroughputResponse">>,
+        content_type   = <<"ThroughputRespV1">>,
         correlation_id = MsgId,
         message_id     = uuid:unparse(uuid:generate())
     },
-    fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespPayload, RespProps),
+    fun_amqp:basic_publish(St#st.amqp_chan, ReplyTo, RespBin, RespProps),
     {noreply, St}.
 
 build_connection_v1(Node) ->
