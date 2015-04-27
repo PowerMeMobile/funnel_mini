@@ -620,7 +620,10 @@ handle_basic_deliver(<<"DisconnectReqV1">>, ReqBin, Props, St) ->
                  (UID, N) -> N#node.user_id =:= binary_to_list(UID)
               end,
     ChkType = fun(undefined, _) -> true;
-                 (Type, N) -> N#node.type =:= Type
+                 (Type, N) when is_atom(Type) ->
+                    N#node.type =:= Type;
+                 (Types, N) when is_list(Types) ->
+                    lists:member(N#node.type, Types)
               end,
     ChkConn = fun(undefined, _) -> true;
                  (CID, N) -> N#node.uuid =:= binary_to_list(CID)
