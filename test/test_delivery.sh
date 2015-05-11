@@ -15,6 +15,7 @@ SYSTEM_ID=user
 PASSWORD=password
 SRC_ADDR=375296660001
 DST_ADDR=999296543210
+SHORT_CODE_ADDR=0011
 
 SMPPSIM_SERVER="http://${SMPPSIM_HOST-$HOST}:${SMPPSIM_PORT-8071}"
 
@@ -63,7 +64,7 @@ function send_incoming_via_smppsim() {
 short_message=$msg&\
 source_addr=$src&\
 destination_addr=$dst&\
-source_addr_ton=1&source_addr_npi=0&dest_addr_ton=1&dest_addr_npi=1"
+source_addr_ton=1&source_addr_npi=1&dest_addr_ton=6&dest_addr_npi=0"
 
     curl -s "$url" > /dev/null
 }
@@ -99,6 +100,6 @@ echo "#"
 echo "# Check incomings"
 echo "#"
 
-B=$RANDOM; send_incoming_via_smppsim $DST_ADDR $SRC_ADDR $B; check "dummy" dlr with "{short_message,\"$B\"}"
+B=$RANDOM; send_incoming_via_smppsim $DST_ADDR $SHORT_CODE_ADDR $B; check "dummy" dlr with "{short_message,\"$B\"}"
 
 exit $EXIT
