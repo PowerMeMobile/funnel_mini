@@ -77,27 +77,6 @@ echo "#"
 cleanup
 
 echo "#"
-echo "# Check delivery statuses"
-echo "#"
-
-# standard
-check "receipt:enroute"       dlr with "stat:ENROUTE"
-check "receipt:delivered"     dlr with "stat:DELIVRD"
-check "receipt:expired"       dlr with "stat:EXPIRED"
-check "receipt:deleted"       dlr with "stat:DELETED"
-check "receipt:undeliverable" dlr with "stat:UNDELIV"
-check "receipt:accepted"      dlr with "stat:ACCEPTD"
-check "receipt:unknown"       dlr with "stat:UNKNOWN"
-check "receipt:rejected"      dlr with "stat:REJECTD"
-
-# non-standard
-check "receipt:unrecognized"  dlr with "stat:UNRECOG"
-check "receipt:BADSTATUS"     dlr with "stat:UNRECOG"
-
-# check errorneous submit, but with dlr
-check "submit:1" dlr with "stat:REJECTD"
-
-echo "#"
 echo "# Check incomings"
 echo "#"
 
