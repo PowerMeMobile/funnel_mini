@@ -626,7 +626,10 @@ handle_basic_deliver(<<"DisconnectReqV1">>, ReqBin, Props, St) ->
                     lists:member(N#node.type, Types)
               end,
     ChkConn = fun(undefined, _) -> true;
-                 (CID, N) -> N#node.uuid =:= binary_to_list(CID)
+                 (CID, N) when is_binary(CID) ->
+                    N#node.uuid =:= binary_to_list(CID);
+                 (CIDs, N) when is_list(CIDs) ->
+                    lists:member(list_to_binary(N#node.uuid), CIDs)
               end,
     Nodes = [
         N || N <- St#st.nodes,
