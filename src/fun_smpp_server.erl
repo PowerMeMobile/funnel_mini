@@ -519,7 +519,7 @@ handle_basic_deliver(<<"ConnectionsRequest">>, _Payload, Props, St) ->
     Connections =
         [
             try
-                {Received, Sent} = fun_throughput:totals(N#node.uuid),
+                {In, Out} = fun_throughput:totals(N#node.uuid),
                 Errors =
                     lists:map(
                         fun({TS, Error}) ->
@@ -532,8 +532,8 @@ handle_basic_deliver(<<"ConnectionsRequest">>, _Payload, Props, St) ->
                               userId = N#node.user_id,
                               connectedAt = fun_time:utc_str(N#node.connected_at),
                               type = N#node.type,
-                              msgsReceived = Received,
-                              msgsSent = Sent,
+                              msgsReceived = Out,
+                              msgsSent = In,
                               errors = Errors}
             catch
                 _:_ -> []
@@ -694,7 +694,7 @@ handle_basic_deliver(<<"ThroughputReqV1">>, ReqBin, Props, St) ->
     {noreply, St}.
 
 build_connection_v1(Node) ->
-    {Received, Sent} = fun_throughput:totals(Node#node.uuid),
+    {In, Out} = fun_throughput:totals(Node#node.uuid),
     Errors = lists:map(fun({TS, Error}) ->
         #connection_error_v1{
             error_code = Error,
@@ -716,8 +716,8 @@ build_connection_v1(Node) ->
         user_id = list_to_binary(Node#node.user_id),
         connected_at = ac_datetime:datetime_to_timestamp(ConnectedAtUTC),
         bind_type = Node#node.type,
-        msgs_received = Received,
-        msgs_sent = Sent,
+        msgs_received = Out,
+        msgs_sent = In,
         errors = Errors
     }.
 
