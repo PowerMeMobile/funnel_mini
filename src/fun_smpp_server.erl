@@ -103,8 +103,6 @@ init([]) ->
         {ok, LSock} ->
             Chan = fun_amqp_pool:open_channel(),
             erlang:monitor(process, Chan),
-            Auth = funnel_app:get_env(queue_backend_auth),
-            fun_amqp:queue_declare(Chan, Auth, false, false, false),
             Control = funnel_app:get_env(queue_server_control),
             ok = fun_amqp:queue_declare(Chan, Control, false, true, true),
             {ok, _CTag} = fun_amqp:basic_consume(Chan, Control, true),
@@ -188,21 +186,26 @@ handle_call({handle_bind, Pid, {Addr, Type, CustomerId, UserId, Password}},
                 [Addr, CustomerId, UserId, Password, Type]
             ),
             {value, Node, Nodes} = lists:keytake(Pid, #node.pid, St#st.nodes),
-            % issue an async AMQP request.
-            Timeout = erlang:min(funnel_conf:get(session_init_time),
-                                 funnel_conf:get(backend_response_time)),
-            request_backend_auth(St#st.amqp_chan,
-                Node#node.uuid, Addr, CustomerId, UserId, Password, Type, Timeout
-            ),
-            erlang:start_timer(Timeout, self(), {handle_bind, CustomerId, UserId, Type, Password}),
-            Node_ = Node#node{
+            Node2 = Node#node{
                 bind_ref    = Ref,
                 customer_id = CustomerId,
                 user_id     = UserId,
                 password    = Password,
                 type        = Type
             },
-            {noreply, St#st{nodes = [Node_|Nodes]}};
+            case alley_services_auth:authenticate(
+                    list_to_binary(CustomerId), list_to_binary(UserId),
+                    list_to_binary(Password), Type) of
+                {ok, Response} ->
+                    handle_bind_response(Response, Node2, St#st{nodes = [Node2|Nodes]});
+                {error, Error} ->
+                    ?log_error(
+                        "Server: bind failed with: ~p"
+                        "(customer: ~s, user: ~s, password: ~s, type: ~s)",
+                        [Error, CustomerId, UserId, Password, Type]
+                    ),
+                    {noreply, St}
+            end;
         false ->
             ?log_warn(
                 "Server: denied bind "
@@ -310,30 +313,7 @@ handle_info(#'EXIT'{pid = Pid}, St) ->
 
 handle_info(#timeout{msg = stop}, St) ->
     gen_server:reply(St#st.stopper_from, ok),
-    {stop, normal, St};
-
-handle_info(#timeout{msg = {handle_bind, CustomerId, UserId, Type, Password}}, St) ->
-    case node_by_details(CustomerId, UserId, Type, Password, St) of
-        {value, #node{state = accepted} = Node, Nodes} ->
-            ?log_warn(
-                "Server: failed to receive bind response "
-                "(customer: ~s, user: ~s, password: ~s, type: ~s), trying cache",
-                [CustomerId, UserId, Password, Type]
-            ),
-            case alley_services_auth_cache:fetch(CustomerId, UserId, Type, Password) of
-                not_found ->
-                    ?log_error(
-                        "Server: failed to receive bind response "
-                        "(customer: ~s, user: ~s, password: ~s, type: ~s), cache is empty",
-                        [CustomerId, UserId, Password, Type]
-                    ),
-                    {noreply, St};
-                {ok, Payload} ->
-                    handle_bind_response(Payload, Node, Nodes, St)
-            end;
-        _ ->
-            {noreply, St}
-    end.
+    {stop, normal, St}.
 
 code_change(_OldVsn, St, _Extra) ->
     {ok, St}.
@@ -341,18 +321,6 @@ code_change(_OldVsn, St, _Extra) ->
 %% -------------------------------------------------------------------------
 %% private helpers
 %% -------------------------------------------------------------------------
-
-node_by_details(CustomerId, UserId, Type, Password, St) ->
-    case lists:filter(fun(#node{customer_id = CstId, user_id = UsrId,
-                                type = T, password = Pwd}) ->
-                           CstId =:= CustomerId andalso UsrId =:= UserId andalso
-                           T =:= Type andalso Pwd =:= Password
-                      end, St#st.nodes) of
-        [] ->
-            false;
-        [Node] ->
-            {value, Node, lists:delete(Node, St#st.nodes)}
-    end.
 
 bound_nodes(Nodes) ->
     [ N || #node{state = bound} = N <- Nodes ].
@@ -380,97 +348,79 @@ allow_another_bind(CustomerId, UserId, Type, Pid, St) ->
 %% amqp helpers
 %% -------------------------------------------------------------------------
 
-handle_bind_response(Payload, Node, Nodes, St) ->
-    {ok, BindResponse} = 'FunnelAsn':decode('BindResponse', Payload),
-    #'BindResponse'{result = Result} = BindResponse,
-    #node{addr = Addr, customer_id = CustomerId, user_id = UserId, uuid = _ConnUUID,
-          password = Password, type = Type, connected_at = _ConnectedAt} = Node,
-    ReplyTo = {Node#node.pid, Node#node.bind_ref},
-    case Result of
-        {customer, Customer} ->
-            #'Customer'{uuid = UUID, priority = Priority, rps = Rps,
-                        allowedSources = Allowed, defaultSource = Source,
-                        networks = Networks, providers = Providers,
-                        defaultProviderId = DefaultId,
-                        receiptsAllowed = ReceptsAllowed,
-                        noRetry = NoRetry, defaultValidity = DefaultValidity,
-                        maxValidity = MaxValidity, payType = PayType,
-                        features = Features} = Customer,
-            LogRps= case Rps of
-                        asn1_NOVALUE -> unlimited;
-                        _            -> Rps
-                    end,
-            ?log_info(
-                "Server: granted bind "
-                "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s, rps: ~w, pay type: ~w)",
-                [Addr, CustomerId, UserId, Password, Type, LogRps, PayType]
-            ),
-            case Rps of
-                asn1_NOVALUE -> fun_throttle:unset_rps(CustomerId);
-                _            -> fun_throttle:set_rps(CustomerId, Rps)
-            end,
-            Src = case Source of
-                      #'Addr'{addr = A, ton = T, npi = N} ->
-                          {A, T, N};
-                      asn1_NOVALUE ->
-                          undefined
-                  end,
-            SysId = funnel_conf:get(smpp_server_system_id),
-            Node_ = Node#node{state = bound, bind_ref = undefined},
-            Allowed1 = [ string:to_lower(Ad) || #'Addr'{addr = Ad} <- Allowed ],
-            gen_server:reply(ReplyTo,
-                             {ok, [{system_id, SysId}],
-                              [{uuid, UUID},
-                               {priority, Priority},
-                               {allowed_sources, Allowed1},
-                               {default_source, Src},
-                               {networks, Networks},
-                               {providers, Providers},
-                               {default_provider_id, case DefaultId of
-                                                         asn1_NOVALUE ->
-                                                             undefined;
-                                                         _ ->
-                                                             DefaultId
-                                                     end},
-                               {receipts_allowed, ReceptsAllowed},
-                               {no_retry, NoRetry},
-                               {default_validity, DefaultValidity},
-                               {max_validity, MaxValidity},
-                               {pay_type, PayType},
-                               {features, Features}]}),
-            {noreply, St#st{nodes = [Node_|Nodes]}};
-        {error, Details} ->
-            ?log_warn(
+handle_bind_response(#auth_resp_v2{result = #auth_error_v2{code = Error}}, Node, St) ->
+    case lists:keytake(Node#node.uuid, #node.uuid, St#st.nodes) of
+        {value, _Node, Nodes} ->
+             ?log_warn(
                 "Server: denied bind "
-                "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s) (~s)",
-                [Addr, CustomerId, UserId, Password, Type, Details]
+                 "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s) (~s)",
+                 [Node#node.addr, Node#node.customer_id, Node#node.user_id,
+                  Node#node.password, Node#node.type, Error]
             ),
-            Node_ = Node#node{bind_ref = undefined,
-                              customer_id = undefined,
-                              user_id = undefined,
-                              password = undefined,
-                              type = undefined},
-            gen_server:reply(ReplyTo, {error, ?ESME_RINVSYSID}),
-            {noreply, St#st{nodes = [Node_|Nodes]}}
-    end.
-
-handle_basic_deliver(<<"BindResponse">>, Payload, _Props, St) ->
-    {ok, BindResponse} = 'FunnelAsn':decode('BindResponse', Payload),
-    #'BindResponse'{connectionId = ConnectionId, result = Result} = BindResponse,
-    case lists:keytake(ConnectionId, #node.uuid, St#st.nodes) of
-        {value, #node{state = accepted} = Node, Nodes} ->
-            case Result of
-                {customer, _} ->
-                    #node{customer_id = CustomerId, user_id = UserId,
-                          password = Password, type = Type} = Node,
-                    alley_services_auth_cache:store(CustomerId, UserId, Type, Password, Payload);
-                _ ->
-                    ok
-            end,
-            handle_bind_response(Payload, Node, Nodes, St);
+            Node2 = Node#node{
+                bind_ref = undefined,
+                customer_id = undefined,
+                user_id = undefined,
+                password = undefined,
+                type = undefined
+            },
+            {reply, {error, ?ESME_RBINDFAIL}, St#st{nodes = [Node2|Nodes]}};
         _ ->
             {noreply, St}
     end;
+handle_bind_response(#auth_resp_v2{result = #auth_customer_v2{} = Customer}, Node, St) ->
+    case lists:keytake(Node#node.uuid, #node.uuid, St#st.nodes) of
+        {value, _Node, Nodes} ->
+            #node{addr = Addr, customer_id = CustomerId, user_id = UserId, uuid = _ConnUUID,
+                  password = Password, type = Type, connected_at = _ConnectedAt} = Node,
+            #auth_customer_v2{customer_uuid = UUID, priority = Priority, rps = Rps,
+                        allowed_sources = Allowed, default_source = Source,
+                        networks = Networks, providers = Providers,
+                        default_provider_id = DefaultProvId,
+                        receipts_allowed = ReceptsAllowed,
+                        no_retry = NoRetry, default_validity = DefaultValidity,
+                        max_validity = MaxValidity, pay_type = PayType,
+                        features = Features} = Customer,
+            ?log_info(
+                "Server: granted bind "
+                "(addr: ~s, customer: ~s, user: ~s, password: ~s, type: ~s, rps: ~w, pay type: ~w)",
+                [Addr, CustomerId, UserId, Password, Type, Rps, PayType]
+            ),
+            case Rps of
+                undefined -> fun_throttle:unset_rps(CustomerId);
+                _         -> fun_throttle:set_rps(CustomerId, Rps)
+            end,
+            Src = case Source of
+                      #addr{addr = A, ton = T, npi = N} ->
+                          {A, T, N};
+                      undefined ->
+                          undefined
+                  end,
+            SysId = funnel_conf:get(smpp_server_system_id),
+            Allowed2 = [ bstr:lower(Ad) || #addr{addr = Ad} <- Allowed ],
+            Reply = {ok, [{system_id, SysId}],
+                         [{uuid, UUID},
+                          {priority, Priority},
+                          {allowed_sources, Allowed2},
+                          {default_source, Src},
+                          {networks, Networks},
+                          {providers, Providers},
+                          {default_provider_id, DefaultProvId},
+                          {receipts_allowed, ReceptsAllowed},
+                          {no_retry, NoRetry},
+                          {default_validity, DefaultValidity},
+                          {max_validity, MaxValidity},
+                          {pay_type, PayType},
+                          {features, Features}]
+                    },
+            Node2 = Node#node{
+                state = bound,
+                bind_ref = undefined
+            },
+            {reply, Reply, St#st{nodes = [Node2|Nodes]}};
+        _ ->
+            {noreply, St}
+    end.
 
 handle_basic_deliver(<<"DisconnectRequest">>, Payload, Props, St) ->
     {ok, DisconnectRequest} = 'FunnelAsn':decode('DisconnectRequest', Payload),
@@ -493,14 +443,13 @@ handle_basic_deliver(<<"DisconnectRequest">>, Payload, Props, St) ->
                 end
         end,
     lists:foreach(
-        fun(#node{uuid = UUID, pid = Pid, type = Type, password = Password}) ->
-                fun_smpp_node:unbind(Pid),
-                alley_services_auth_cache:delete(CustomerId, UserId, Type, Password),
-                ?log_info(
-                    "Server: unbinding a client "
-                    "(uuid: ~s, customer: ~s, user: ~s)",
-                    [UUID, CustomerId, UserId]
-                )
+        fun(#node{uuid = UUID, pid = Pid}) ->
+            fun_smpp_node:unbind(Pid),
+            ?log_info(
+                "Server: unbinding a client "
+                "(uuid: ~s, customer: ~s, user: ~s)",
+                [UUID, CustomerId, UserId]
+            )
         end, Nodes
     ),
     Response = #'DisconnectResponse'{},
@@ -639,13 +588,13 @@ handle_basic_deliver(<<"DisconnectReqV1">>, ReqBin, Props, St) ->
         ChkConn(ConnectionId, N)
     ],
     lists:foreach(
-        fun(#node{uuid = UUID, pid = Pid, type = Type,
-                  customer_id = CID, user_id = UID, password = Password}) ->
-                fun_smpp_node:unbind(Pid),
-                alley_services_auth_cache:delete(CID, UID, Type, Password),
-                ?log_info("Server: unbinding a client "
-                          "(uuid: ~s, customer: ~s, user: ~s)",
-                          [UUID, CID, UID])
+        fun(#node{uuid = UUID, pid = Pid, customer_id = CID, user_id = UID}) ->
+            fun_smpp_node:unbind(Pid),
+            ?log_info(
+                "Server: unbinding a client "
+                "(uuid: ~s, customer: ~s, user: ~s)",
+                [UUID, CID, UID]
+            )
         end, Nodes
     ),
     Resp = #disconnect_resp_v1{
@@ -720,35 +669,6 @@ build_connection_v1(Node) ->
         msgs_sent = In,
         errors = Errors
     }.
-
-request_backend_auth(Chan, UUID, Addr, CustomerId, UserId, Password, Type, Timeout) ->
-    Cached = alley_services_auth_cache:fetch(CustomerId, UserId, Type, Password),
-    Now = fun_time:milliseconds(),
-    Then = Now + Timeout,
-    Timestamp = #'PreciseTime'{time = fun_time:utc_str(fun_time:milliseconds_to_now(Now)),
-                               milliseconds = Now rem 1000},
-    Expiration = #'PreciseTime'{time = fun_time:utc_str(fun_time:milliseconds_to_now(Then)),
-                                milliseconds = Then rem 1000},
-    BindRequest = #'BindRequest'{
-        connectionId = UUID,
-        remoteIp     = Addr,
-        customerId   = CustomerId,
-        userId       = UserId,
-        password     = Password,
-        type         = Type,
-        isCached     = Cached =/= not_found,
-        timestamp    = Timestamp,
-        expiration   = Expiration
-    },
-    {ok, Payload} = 'FunnelAsn':encode('BindRequest', BindRequest),
-    RoutingKey = funnel_app:get_env(queue_backend_auth),
-    Props = #'P_basic'{
-        content_type  = <<"BindRequest">>,
-        delivery_mode = 2,
-        message_id    = uuid:unparse(uuid:generate()),
-        reply_to      = funnel_app:get_env(queue_server_control)
-    },
-    fun_amqp:basic_publish(Chan, RoutingKey, Payload, Props).
 
 notify_backend_server_up(Chan) ->
     ServerUpEvent = #'ServerUpEvent'{

@@ -43,12 +43,12 @@
              smpp_log_mgr     :: pid(),
              logger           :: atom(),
              uuid             :: string(),
-             customer_uuid    :: string(),
+             customer_uuid    :: binary(),
              priority         :: non_neg_integer(),
              receipts_allowed :: boolean(),
              no_retry         :: boolean(),
-             default_provider_id :: string(),
-             default_validity :: string(),
+             default_provider_id :: binary(),
+             default_validity :: pos_integer(),
              max_validity     :: pos_integer(),
              pay_type         :: prepaid | postpaid,
              batch_tab        :: ets:tid(),
@@ -120,7 +120,7 @@ init(LSock) ->
         coverage_tab = ets:new(coverage_tab, []),
         req_tab      = ets:new(req_tab, []),
         deliver_queue = queue:new(),
-        providers_tab = ets:new(providers, [{keypos, #'Provider'.id}]),
+        providers_tab = ets:new(providers, [{keypos, #provider_v1.id}]),
         features_tab  = ets:new(features_tab, [])
     }}.
 
@@ -525,7 +525,7 @@ step(ensure_source, {SeqNum, Params}, St) ->
             case St#st.default_source of
                 {A, T, N} ->
                     Replaced =
-                        ?KEYREPLACE3(source_addr, A,
+                        ?KEYREPLACE3(source_addr, binary_to_list(A),
                             ?KEYREPLACE3(source_addr_ton, T,
                                 ?KEYREPLACE3(source_addr_npi, N, Params))),
                     step(validate_source_ton_npi, {SeqNum, Replaced}, St);
@@ -537,7 +537,7 @@ step(ensure_source, {SeqNum, Params}, St) ->
             case St#st.default_source of
                 {A, T, N} ->
                     Replaced =
-                        ?KEYREPLACE3(source_addr, A,
+                        ?KEYREPLACE3(source_addr, binary_to_list(A),
                             ?KEYREPLACE3(source_addr_ton, T,
                                 ?KEYREPLACE3(source_addr_npi, N, Params))),
                     step(validate_source_ton_npi, {SeqNum, Replaced}, St);
@@ -546,7 +546,7 @@ step(ensure_source, {SeqNum, Params}, St) ->
                     {error, ?ESME_RINVSRCADR, "not allowed source_addr"}
             end;
         _otherwise -> %% empty when Addr =/= "" or false
-            case lists:member(string:to_lower(Addr), St#st.allowed_sources) of
+            case lists:member(bstr:lower(list_to_binary(Addr)), St#st.allowed_sources) of
                 true ->
                     step(validate_source_ton_npi, {SeqNum, Params}, St);
                 false ->
@@ -632,7 +632,7 @@ step(verify_message_length, {SeqNum, Params}, St) ->
 step(verify_registered_delivery, {SeqNum, Params}, St) ->
     RD = ?gv(registered_delivery, Params),
     [P] = ets:lookup(St#st.providers_tab, ?gv(provider_id, Params)),
-    case (RD =/= 0) andalso not (St#st.receipts_allowed andalso P#'Provider'.receiptsSupported) of
+    case (RD =/= 0) andalso not (St#st.receipts_allowed andalso P#provider_v1.receipts_supported) of
         true ->
             {error, ?ESME_RINVREGDLVFLG, "receipts not allowed"};
         false ->
@@ -642,7 +642,8 @@ step(verify_registered_delivery, {SeqNum, Params}, St) ->
 step(validate_validity_period, {SeqNum, Params}, St) ->
     case ?gv(validity_period, Params) of
         "" ->
-            Params1 = ?KEYREPLACE3(validity_period, St#st.default_validity, Params),
+            VP = fmt_validity(St#st.default_validity),
+            Params1 = ?KEYREPLACE3(validity_period, VP, Params),
             step(check_billing, {SeqNum, Params1}, St);
         VP ->
             Delta = time_delta(VP),
@@ -677,16 +678,16 @@ step(check_billing, {SeqNum, Params}, St) ->
     end;
 
 step(request_credit, {SeqNum, Params}, St) ->
-    CustomerId = St#st.customer_uuid,
+    CustomerUuid = St#st.customer_uuid,
     Price = ?gv(price, Params),
-    case fun_credit:request_credit(list_to_binary(CustomerId), Price) of
+    case fun_credit:request_credit(CustomerUuid, Price) of
         {allowed, CreditLeft} ->
-            ?log_debug("Sending allowed. CustomerId: ~s, credit left: ~p",
-                [CustomerId, CreditLeft]),
+            ?log_debug("Sending allowed. CustomerUuid: ~s, credit left: ~p",
+                [CustomerUuid, CreditLeft]),
             step(accept, {SeqNum, Params}, St);
         {denied, CreditLeft} ->
-            ?log_error("Sending denied. CustomerId: ~s, credit left: ~p",
-                [CustomerId, CreditLeft]),
+            ?log_error("Sending denied. CustomerUuid: ~s, credit left: ~p",
+                [CustomerUuid, CreditLeft]),
             {error, ?E_CREDIT_LIMIT_EXCEEDED, "credit limit is exceeded"}
     end;
 
@@ -706,7 +707,7 @@ step(concat_parts, {SeqNum, Params}, St) ->
             TS = fun_time:milliseconds(),
             MsgId = next_message_id(St),
             DestAddr = dest_addr(Params),
-            NetId = ?KEYFIND2(network_id, Params),
+            NetId = binary_to_list(?KEYFIND2(network_id, Params)),
             Price = ?KEYFIND2(price, Params),
             fun_tracker:add_dest_and_price(BatchId, MsgId,
                 ?gv(sar_msg_ref_num, Params), DestAddr, NetId, Price),
@@ -752,7 +753,7 @@ step(add_dest_and_price, {SeqNum, Params, FP, BatchId, Size}, St) ->
     TS = fun_time:milliseconds(),
     MsgId = next_message_id(St),
     DestAddr = dest_addr(Params),
-    NetId = ?KEYFIND2(network_id, Params),
+    NetId = binary_to_list(?KEYFIND2(network_id, Params)),
     Price = ?KEYFIND2(price, Params),
     fun_tracker:add_dest_and_price(BatchId, MsgId,
         ?KEYFIND3(sar_msg_ref_num, Params, -1), DestAddr, NetId, Price),
@@ -774,17 +775,8 @@ step(add_dest_and_price, {SeqNum, Params, FP, BatchId, Size}, St) ->
 %% -------------------------------------------------------------------------
 
 fill_coverage_tab(Networks, Providers, DefProvId, Tab) ->
-    Networks2 = adto_funnel:networks_to_v1(Networks),
-    Providers2 = adto_funnel:providers_to_v1(Providers),
-    DefProvId2 =
-        case DefProvId of
-            undefined ->
-                undefined;
-            DefProvId when is_list(DefProvId) ->
-                list_to_binary(DefProvId)
-        end,
     alley_services_coverage:fill_coverage_tab(
-        Networks2, Providers2, DefProvId2, Tab).
+        Networks, Providers, DefProvId, Tab).
 
 fill_providers_tab(Providers, Tab) ->
     [ets:insert(Tab, P) || P <- Providers].
@@ -793,10 +785,10 @@ fill_features_tab(Features, Tab) ->
     [ets:insert(Tab, {N, V}) || {N, V} <- known_features(Features)].
 
 known_features(Features) ->
-    [known_feature({N, V}) || #'Feature'{name = N, value = V} <- Features].
+    [known_feature({N, V}) || #feature_v1{name = N, value = V} <- Features].
 
-known_feature({"override_originator", Value}) ->
-    {override_originator, list_to_existing_atom(Value)};
+known_feature({<<"override_originator">>, Value}) ->
+    {override_originator, binary_to_existing_atom(Value, utf8)};
 known_feature(_) ->
     false.
 
@@ -813,7 +805,7 @@ which_network(Params, Tab) ->
             DestAddr3 = DestAddr2#addr{
                 addr = binary_to_list(DestAddr2#addr.addr)
             },
-            {binary_to_list(NetId), DestAddr3, binary_to_list(ProvId), Price}
+            {NetId, DestAddr3, ProvId, Price}
     end.
 
 reply(Pid, Reply) ->
@@ -896,8 +888,8 @@ open_batch(Params, St) ->
             Extended = [{customer_uuid, St#st.customer_uuid},
                         {no_retry, St#st.no_retry},
                         {priority, St#st.priority},
-                        {gateway_id, P#'Provider'.gatewayId},
-                        {bulk_gateway_id, P#'Provider'.bulkGatewayId}|Encoded],
+                        {gateway_id, P#provider_v1.gateway_id},
+                        {bulk_gateway_id, P#provider_v1.bulk_gateway_id}|Encoded],
             fun_tracker:open_batch(St#st.uuid, St#st.customer_id,
                                    St#st.user_id, Extended)
     catch

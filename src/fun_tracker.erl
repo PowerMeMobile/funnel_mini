@@ -313,8 +313,8 @@ publish_user_batch(Toke, Chan, BatchId) ->
                                     length(re:split(MsgId, ":", [trim])) + Acc
                                 end, 0, Dests),
             GtwId = case Total < funnel_conf:get(bulk_threshold) of
-                        true  -> string:to_lower(?gv("gateway_id", Common));
-                        false -> string:to_lower(?gv("bulk_gateway_id", Common))
+                        true  -> binary_to_list(bstr:lower(?gv("gateway_id", Common)));
+                        false -> binary_to_list(bstr:lower(?gv("bulk_gateway_id", Common)))
                     end,
             Prio = ?gv("priority", Common),
             Headers = [],

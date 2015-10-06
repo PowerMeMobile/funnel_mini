@@ -26,7 +26,7 @@ start_link() ->
 init([]) ->
     {ok, {{rest_for_one, 5, 30}, [
         ?CHILD(fun_amqp_pool, permanent, 5000),
-        ?CHILD(alley_services_auth_cache, permanent, 5000),
+        ?CHILD(alley_services_auth, permanent, 5000),
         ?CHILD(alley_services_api, permanent, 5000),
         ?CHILD(alley_services_blacklist, permanent, 5000),
         ?CHILD(alley_services_events, permanent, 5000),
