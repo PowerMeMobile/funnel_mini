@@ -14,10 +14,7 @@ SYSTEM_TYPE=10001
 SYSTEM_ID=user
 PASSWORD=password
 SRC_ADDR=375296660001
-DST_ADDR=999296543210
-SHORT_CODE_ADDR=0011
-
-SMPPSIM_SERVER="http://${SMPPSIM_HOST-$HOST}:${SMPPSIM_PORT-8071}"
+DST_ADDR=375296543210
 
 EXIT=0
 
@@ -44,8 +41,7 @@ function check() {
     esac
 
     echo -n "$SRC_ADDR;$DST_ADDR;$command;$delivery_flag;$encoding" |
-    smppload --host=$HOST --port=$PORT --system_type=$SYSTEM_TYPE --system_id=$SYSTEM_ID --password=$PASSWORD \
-        --file - -vv | grep $invert_match "$pattern" > /dev/null
+    smppload --host=$HOST --port=$PORT --system_type=$SYSTEM_TYPE --system_id=$SYSTEM_ID --password=$PASSWORD --file - -vv | grep $invert_match "$pattern" > /dev/null
 
     if [[ "$?" != 0 ]]; then
         echo -e "$command\t$delivery\t\e[31mFAIL\e[0m"
@@ -53,21 +49,6 @@ function check() {
     else
         echo -e "$command\t$delivery\t\e[32mOK\e[0m"
     fi
-}
-
-function send_incoming_via_smppsim() {
-    local src="$1"
-    local dst="$2"
-    local msg="$3"
-
-    local url="$SMPPSIM_SERVER/inject_mo?\
-short_message=$msg&\
-source_addr=$src&\
-source_addr_ton=1&source_addr_npi=1&\
-destination_addr=$dst&\
-dest_addr_ton=6&dest_addr_npi=0"
-
-    curl -s "$url" > /dev/null
 }
 
 echo "#"
@@ -96,11 +77,5 @@ check "receipt:BADSTATUS"     dlr with "stat:UNRECOG"
 
 # check errorneous submit, but with dlr
 check "submit:1" dlr with "stat:REJECTD"
-
-echo "#"
-echo "# Check incomings"
-echo "#"
-
-B=$RANDOM; send_incoming_via_smppsim $DST_ADDR $SHORT_CODE_ADDR $B; check "dummy" dlr with "{short_message,\"$B\"}"
 
 exit $EXIT
