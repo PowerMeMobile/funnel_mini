@@ -28,7 +28,8 @@ function check() {
     local delivery="$2"
     local invert="$3"
     local pattern="$4"
-    local encoding="${5-3}" # default latin1
+    local system_id="${5-${SYSTEM_ID}}"
+    local src_addr="${6-${SRC_ADDR}}"
 
     case "$delivery" in
         !dlr) delivery_flag=false;;
@@ -40,8 +41,8 @@ function check() {
         with) invert_match=""
     esac
 
-    echo -n "$SRC_ADDR;$DST_ADDR;$command;$delivery_flag;$encoding" |
-    smppload --host=$HOST --port=$PORT --system_type=$SYSTEM_TYPE --system_id=$SYSTEM_ID --password=$PASSWORD --file - -vv | grep $invert_match "$pattern" > /dev/null
+    echo -n "$src_addr;$DST_ADDR;$command;$delivery_flag;3" |
+    smppload --host=$HOST --port=$PORT --system_type=$SYSTEM_TYPE --system_id=$system_id --password=$PASSWORD --file - -vv | grep $invert_match "$pattern" > /dev/null
 
     if [[ "$?" != 0 ]]; then
         echo -e "$command\t$delivery\t\e[31mFAIL\e[0m"
@@ -56,6 +57,22 @@ echo "# Clean up"
 echo "#"
 
 cleanup
+
+echo "#"
+echo "# Check override originator"
+echo "#"
+
+check "empty 375296660001" !dlr w/o "ERROR" user 375296660001
+check "empty ''          " !dlr w/o "ERROR" user ""
+check "empty 375296660099" !dlr with "Invalid Source Address" user 375296660099
+
+check "any 375296660001" !dlr w/o "ERROR" user2 375296660001
+check "any ''          " !dlr w/o "ERROR" user2 ""
+check "any 375296660099" !dlr w/o "ERROR" user2 375296660099
+
+check "false 375296660001" !dlr w/o "ERROR" user3 375296660001
+check "false ''         " !dlr with "Invalid Source Address" user3 ""
+check "false 375296660099" !dlr with "Invalid Source Address" user3 375296660099
 
 echo "#"
 echo "# Check delivery statuses"
