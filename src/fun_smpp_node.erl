@@ -975,6 +975,8 @@ unparse_common(CommonBin) ->
 
 unparse_dest_and_price(DestBin) ->
     case re:split(DestBin, ";", [{return, list}]) of
+        %% this clause is deprecated and should be removed
+        %% see fun_tracker:encode_batch/4
         [MsgId, RefNum, Addr, Ton, Npi] ->
             RefNum2 = list_to_integer(RefNum),
             Ton2 = list_to_integer(Ton),

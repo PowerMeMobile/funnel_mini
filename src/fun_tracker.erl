@@ -351,6 +351,8 @@ encode_batch(Common, Dests, BatchId, GtwId) ->
 
             {NetId, Price} =
                 case Rest of
+                    %% this clause is deprecated and should be removed
+                    %% see fun_smpp_node:unparse_dest_and_price/1
                     [] ->
                         {"", 0};
                     [NetId2, Price2] ->
