@@ -8,3 +8,6 @@
 
 -define(KEYREPLACE3(Key, Value, List),
     lists:keyreplace(Key, 1, List, {Key, Value})).
+
+-define(KEYSTORE3(Key, Value, List),
+    lists:keystore(Key, 1, List, {Key, Value})).

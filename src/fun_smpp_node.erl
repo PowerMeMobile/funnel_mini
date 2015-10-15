@@ -501,11 +501,13 @@ step(ensure_source, {SeqNum, Params}, St) ->
         any ->
             case St#st.default_source of
                 {A, T, N} ->
-                    Replaced =
-                        ?KEYREPLACE3(source_addr, binary_to_list(A),
-                            ?KEYREPLACE3(source_addr_ton, T,
-                                ?KEYREPLACE3(source_addr_npi, N, Params))),
-                    step(validate_source_ton_npi, {SeqNum, Replaced}, St);
+                    Params2 =
+                        %% route on given, replace with default
+                        ?KEYSTORE3(coverage_id, list_to_binary(Addr),
+                            ?KEYREPLACE3(source_addr, binary_to_list(A),
+                                ?KEYREPLACE3(source_addr_ton, T,
+                                    ?KEYREPLACE3(source_addr_npi, N, Params)))),
+                    step(validate_source_ton_npi, {SeqNum, Params2}, St);
                 undefined ->
                     % no default one set -> return error.
                     {error, ?ESME_RINVSRCADR, "not allowed source_addr"}
@@ -513,11 +515,13 @@ step(ensure_source, {SeqNum, Params}, St) ->
         empty when Addr =:= "" ->
             case St#st.default_source of
                 {A, T, N} ->
-                    Replaced =
-                        ?KEYREPLACE3(source_addr, binary_to_list(A),
-                            ?KEYREPLACE3(source_addr_ton, T,
-                                ?KEYREPLACE3(source_addr_npi, N, Params))),
-                    step(validate_source_ton_npi, {SeqNum, Replaced}, St);
+                    Params2 =
+                        %% route on default, replace with default
+                        ?KEYSTORE3(coverage_id, A,
+                            ?KEYREPLACE3(source_addr, binary_to_list(A),
+                                ?KEYREPLACE3(source_addr_ton, T,
+                                    ?KEYREPLACE3(source_addr_npi, N, Params)))),
+                    step(validate_source_ton_npi, {SeqNum, Params2}, St);
                 undefined ->
                     % no default one set -> return error.
                     {error, ?ESME_RINVSRCADR, "not allowed source_addr"}
@@ -525,7 +529,9 @@ step(ensure_source, {SeqNum, Params}, St) ->
         _otherwise -> %% empty when Addr =/= "" or false
             case lists:member(bstr:lower(list_to_binary(Addr)), St#st.allowed_sources) of
                 true ->
-                    step(validate_source_ton_npi, {SeqNum, Params}, St);
+                    %% route on given, don't replace
+                    Params2 = ?KEYSTORE3(coverage_id, list_to_binary(Addr), Params),
+                    step(validate_source_ton_npi, {SeqNum, Params2}, St);
                 false ->
                     {error, ?ESME_RINVSRCADR, "not allowed source_addr"}
             end
@@ -607,8 +613,8 @@ step(verify_message_length, {SeqNum, Params}, St) ->
     end;
 
 step(verify_coverage, {SeqNum, Params}, St) ->
-    Addr = list_to_binary(?gv(source_addr, Params)),
-    Tab = find_tab(Addr, St#st.coverage_map),
+    Id = ?gv(coverage_id, Params),
+    Tab = find_tab(Id, St#st.coverage_map),
     case which_network(Params, Tab) of
         {NetId, DestAddr, ProvId, Price} ->
             DestDigits = DestAddr#addr.addr,
@@ -630,8 +636,8 @@ step(verify_coverage, {SeqNum, Params}, St) ->
 
 step(verify_registered_delivery, {SeqNum, Params}, St) ->
     RD = ?gv(registered_delivery, Params),
-    Addr = list_to_binary(?gv(source_addr, Params)),
-    Tab = find_tab(Addr, St#st.providers_map),
+    Id = ?gv(coverage_id, Params),
+    Tab = find_tab(Id, St#st.providers_map),
     [P] = ets:lookup(Tab, ?gv(provider_id, Params)),
     case (RD =/= 0) andalso not (St#st.receipts_allowed andalso P#provider_v1.receipts_supported) of
         true ->
@@ -885,8 +891,8 @@ encode_message(Params) ->
 open_batch(Params, St) ->
     try encode_message(Params) of
         Encoded ->
-            Addr = list_to_binary(?gv(source_addr, Params)),
-            Tab = find_tab(Addr, St#st.providers_map),
+            Id = ?gv(coverage_id, Params),
+            Tab = find_tab(Id, St#st.providers_map),
             [P] = ets:lookup(Tab, ?gv(provider_id, Params)),
             Extended = [{customer_uuid, St#st.customer_uuid},
                         {no_retry, St#st.no_retry},
