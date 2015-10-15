@@ -348,7 +348,7 @@ allow_another_bind(CustomerId, UserId, Type, Pid, St) ->
 %% amqp helpers
 %% -------------------------------------------------------------------------
 
-handle_bind_response(#auth_resp_v2{result = #auth_error_v2{code = Error}}, Node, St) ->
+handle_bind_response(#auth_resp_v3{result = #auth_error_v3{code = Error}}, Node, St) ->
     case lists:keytake(Node#node.uuid, #node.uuid, St#st.nodes) of
         {value, _Node, Nodes} ->
              ?log_warn(
@@ -368,16 +368,14 @@ handle_bind_response(#auth_resp_v2{result = #auth_error_v2{code = Error}}, Node,
         _ ->
             {noreply, St}
     end;
-handle_bind_response(#auth_resp_v2{result = #auth_customer_v2{} = Customer}, Node, St) ->
+handle_bind_response(#auth_resp_v3{result = #auth_customer_v3{} = Customer}, Node, St) ->
     case lists:keytake(Node#node.uuid, #node.uuid, St#st.nodes) of
         {value, _Node, Nodes} ->
             #node{addr = Addr, customer_id = CustomerId, user_id = UserId, uuid = _ConnUUID,
                   password = Password, type = Type, connected_at = _ConnectedAt} = Node,
-            #auth_customer_v2{customer_uuid = UUID, priority = Priority, rps = Rps,
-                        allowed_sources = Allowed, default_source = Source,
-                        networks = Networks, providers = Providers,
-                        default_provider_id = DefaultProvId,
-                        receipts_allowed = ReceptsAllowed,
+            #auth_customer_v3{customer_uuid = UUID, priority = Priority, rps = Rps,
+                        originators = Allowed, default_originator = Source,
+                        coverages = Coverages, receipts_allowed = ReceptsAllowed,
                         no_retry = NoRetry, default_validity = DefaultValidity,
                         max_validity = MaxValidity, pay_type = PayType,
                         features = Features} = Customer,
@@ -403,9 +401,7 @@ handle_bind_response(#auth_resp_v2{result = #auth_customer_v2{} = Customer}, Nod
                           {priority, Priority},
                           {allowed_sources, Allowed2},
                           {default_source, Src},
-                          {networks, Networks},
-                          {providers, Providers},
-                          {default_provider_id, DefaultProvId},
+                          {coverages, Coverages},
                           {receipts_allowed, ReceptsAllowed},
                           {no_retry, NoRetry},
                           {default_validity, DefaultValidity},

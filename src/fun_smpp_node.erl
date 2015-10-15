@@ -53,7 +53,6 @@
              pay_type         :: prepaid | postpaid,
              batch_tab        :: ets:tid(),
              parts_tab        :: ets:tid(),
-             coverage_tab     :: ets:tid(),
              req_tab          :: ets:tid(),
              deliver_queue    :: queue(),
              addr             :: string(),
@@ -64,8 +63,9 @@
              allowed_sources  :: [string()],
              default_source   :: {string(), integer(), integer()},
              batch_runner     :: pid(),
-             providers_tab    :: ets:tid(),
-             features_tab     :: ets:tid()
+             features_tab     :: ets:tid(),
+             coverage_map     :: [{customer | binary(), ets:tid()}],
+             providers_map    :: [{customer | binary(), ets:tid()}]
 }).
 
 -define(gv(K, P), proplists:get_value(K, P)).
@@ -117,10 +117,8 @@ init(LSock) ->
         mc_session   = Session,
         batch_tab    = ets:new(batch_tab, []),
         parts_tab    = ets:new(parts_tab, []),
-        coverage_tab = ets:new(coverage_tab, []),
         req_tab      = ets:new(req_tab, []),
         deliver_queue = queue:new(),
-        providers_tab = ets:new(providers, [{keypos, #provider_v1.id}]),
         features_tab  = ets:new(features_tab, [])
     }}.
 
@@ -149,8 +147,8 @@ terminate(Reason, St) ->
     ets:delete(St#st.batch_tab),
     ets:delete(St#st.parts_tab),
     ets:delete(St#st.req_tab),
-    ets:delete(St#st.coverage_tab),
-    ets:delete(St#st.providers_tab),
+    delete_map(St#st.coverage_map),
+    delete_map(St#st.providers_map),
     ets:delete(St#st.features_tab),
     ?log_debug("Node: terminated (~p)", [Reason]).
 
@@ -188,14 +186,11 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                 [St#st.addr, CustomerId, UserId, Password, Type]
             ),
             fun_tracker:register_user(CustomerId, UserId),
-            Networks = ?gv(networks, Customer),
-            Providers = ?gv(providers, Customer),
-            DefProvId = ?gv(default_provider_id, Customer),
             Features = ?gv(features, Customer),
-            fill_coverage_tab(
-                Networks, Providers, DefProvId, St#st.coverage_tab),
-            fill_providers_tab(Providers, St#st.providers_tab),
             fill_features_tab(Features, St#st.features_tab),
+            Coverages = ?gv(coverages, Customer),
+            CoverageMap = make_coverage_map(Coverages),
+            ProvidersMap = make_providers_map(Coverages),
             Runner =
                 if
                     Type =:= receiver orelse Type =:= transceiver ->
@@ -224,7 +219,9 @@ handle_call({handle_bind, Type, Version, SystemType, SystemId, Password},
                    default_provider_id = ?gv(default_provider_id, Customer),
                    default_validity = ?gv(default_validity, Customer),
                    max_validity = ?gv(max_validity, Customer),
-                   pay_type = ?gv(pay_type, Customer)
+                   pay_type = ?gv(pay_type, Customer),
+                   coverage_map = CoverageMap,
+                   providers_map = ProvidersMap
               }};
         {error, Error} ->
             fun_errors:record(St#st.uuid, Error),
@@ -464,29 +461,9 @@ handle_submit(SeqNum, Params, St) ->
 step(throttle, {SeqNum, Params}, St) ->
     case fun_throttle:is_allowed(St#st.customer_id) of
         true ->
-            step(verify_coverage, {SeqNum, Params}, St);
+            step(tlv_params, {SeqNum, Params}, St);
         false ->
             {error, ?ESME_RTHROTTLED, "throttled"}
-    end;
-
-step(verify_coverage, {SeqNum, Params}, St) ->
-    case which_network(Params, St#st.coverage_tab) of
-        {NetId, DestAddr, ProvId, Price} ->
-            DestDigits = DestAddr#addr.addr,
-            DestTon    = DestAddr#addr.ton,
-            DestNpi    = DestAddr#addr.npi,
-            Params1 =
-                ?KEYREPLACE3(destination_addr, DestDigits,
-                    ?KEYREPLACE3(dest_addr_ton, DestTon,
-                        ?KEYREPLACE3(dest_addr_npi, DestNpi, Params))),
-            Params2 = [
-                {network_id, NetId},
-                {provider_id, ProvId},
-                {price, Price}
-                | Params1],
-            step(tlv_params, {SeqNum, Params2}, St);
-        undefined ->
-            {error, ?ESME_RINVDSTADR, "invalid destination_addr"}
     end;
 
 step(tlv_params, {SeqNum, Params}, St) ->
@@ -624,14 +601,38 @@ step(verify_message_length, {SeqNum, Params}, St) ->
           end,
     case length(?gv(short_message, Params)) =< Max of
         true ->
-            step(verify_registered_delivery, {SeqNum, Params}, St);
+            step(verify_coverage, {SeqNum, Params}, St);
         false ->
             {error, ?ESME_RINVMSGLEN, "short_message too long"}
     end;
 
+step(verify_coverage, {SeqNum, Params}, St) ->
+    Addr = list_to_binary(?gv(source_addr, Params)),
+    Tab = find_tab(Addr, St#st.coverage_map),
+    case which_network(Params, Tab) of
+        {NetId, DestAddr, ProvId, Price} ->
+            DestDigits = DestAddr#addr.addr,
+            DestTon    = DestAddr#addr.ton,
+            DestNpi    = DestAddr#addr.npi,
+            Params1 =
+                ?KEYREPLACE3(destination_addr, DestDigits,
+                    ?KEYREPLACE3(dest_addr_ton, DestTon,
+                        ?KEYREPLACE3(dest_addr_npi, DestNpi, Params))),
+            Params2 = [
+                {network_id, NetId},
+                {provider_id, ProvId},
+                {price, Price}
+                | Params1],
+            step(verify_registered_delivery, {SeqNum, Params2}, St);
+        undefined ->
+            {error, ?ESME_RINVDSTADR, "invalid destination_addr"}
+    end;
+
 step(verify_registered_delivery, {SeqNum, Params}, St) ->
     RD = ?gv(registered_delivery, Params),
-    [P] = ets:lookup(St#st.providers_tab, ?gv(provider_id, Params)),
+    Addr = list_to_binary(?gv(source_addr, Params)),
+    Tab = find_tab(Addr, St#st.providers_map),
+    [P] = ets:lookup(Tab, ?gv(provider_id, Params)),
     case (RD =/= 0) andalso not (St#st.receipts_allowed andalso P#provider_v1.receipts_supported) of
         true ->
             {error, ?ESME_RINVREGDLVFLG, "receipts not allowed"};
@@ -774,9 +775,9 @@ step(add_dest_and_price, {SeqNum, Params, FP, BatchId, Size}, St) ->
 %% private functions
 %% -------------------------------------------------------------------------
 
-fill_coverage_tab(Networks, Providers, DefProvId, Tab) ->
+fill_coverage_tab(Networks, Providers, Tab) ->
     alley_services_coverage:fill_coverage_tab(
-        Networks, Providers, DefProvId, Tab).
+        Networks, Providers, Tab).
 
 fill_providers_tab(Providers, Tab) ->
     [ets:insert(Tab, P) || P <- Providers].
@@ -884,7 +885,9 @@ encode_message(Params) ->
 open_batch(Params, St) ->
     try encode_message(Params) of
         Encoded ->
-            [P] = ets:lookup(St#st.providers_tab, ?gv(provider_id, Params)),
+            Addr = list_to_binary(?gv(source_addr, Params)),
+            Tab = find_tab(Addr, St#st.providers_map),
+            [P] = ets:lookup(Tab, ?gv(provider_id, Params)),
             Extended = [{customer_uuid, St#st.customer_uuid},
                         {no_retry, St#st.no_retry},
                         {priority, St#st.priority},
@@ -1003,3 +1006,43 @@ fmt_validity(SecondsTotal) ->
     Months = MonthsTotal rem 12,
     lists:flatten(io_lib:format("~2..0w~2..0w~2..0w~2..0w~2..0w~2..0w000R",
                   [Years, Months, Days, Hours, Minutes, Seconds])).
+
+coverage_id(customer)           -> customer;
+coverage_id(#addr{addr = Addr}) -> Addr.
+
+make_coverage_map(Coverages) ->
+    make_coverage_map(Coverages, []).
+
+make_coverage_map([], Acc) ->
+    lists:reverse(Acc);
+make_coverage_map([C | Cs], Acc) ->
+    Id        = coverage_id(C#auth_coverage_v1.id),
+    Networks  = C#auth_coverage_v1.networks,
+    Providers = C#auth_coverage_v1.providers,
+    Tab = ets:new(coverage_tab, []),
+    fill_coverage_tab(Networks, Providers, Tab),
+    make_coverage_map(Cs, [{Id, Tab} | Acc]).
+
+make_providers_map(Coverages) ->
+    make_providers_map(Coverages, []).
+
+make_providers_map([], Acc) ->
+    lists:reverse(Acc);
+make_providers_map([C | Cs], Acc) ->
+    Id        = coverage_id(C#auth_coverage_v1.id),
+    Providers = C#auth_coverage_v1.providers,
+    Tab = ets:new(providers_tab, [{keypos, #provider_v1.id}]),
+    fill_providers_tab(Providers, Tab),
+    make_providers_map(Cs, [{Id, Tab} | Acc]).
+
+delete_map(TabMap) ->
+    [ets:delete(T) || {_, T} <- TabMap].
+
+find_tab(Id, TabMap) ->
+    case lists:keyfind(Id, 1, TabMap) of
+        {_, Tab} ->
+            Tab;
+        false ->
+            {_, Tab} = lists:keyfind(customer, 1, TabMap),
+            Tab
+    end.
