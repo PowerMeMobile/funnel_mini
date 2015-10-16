@@ -30,6 +30,7 @@ function check() {
     local pattern="$4"
     local system_id="${5-${SYSTEM_ID}}"
     local src_addr="${6-${SRC_ADDR}}"
+    local dst_addr="${7-${DST_ADDR}}"
 
     case "$delivery" in
         !dlr) delivery_flag=false;;
@@ -41,7 +42,7 @@ function check() {
         with) invert_match=""
     esac
 
-    echo -n "$src_addr;$DST_ADDR;$command;$delivery_flag;3" |
+    echo -n "$src_addr;$dst_addr;$command;$delivery_flag;3" |
     smppload --host=$HOST --port=$PORT --system_type=$SYSTEM_TYPE --system_id=$system_id --password=$PASSWORD --file - -vv | grep $invert_match "$pattern" > /dev/null
 
     if [[ "$?" != 0 ]]; then
@@ -71,8 +72,42 @@ check "any ''          " !dlr w/o "ERROR" user2 ""
 check "any 375296660099" !dlr w/o "ERROR" user2 375296660099
 
 check "false 375296660001" !dlr w/o "ERROR" user3 375296660001
-check "false ''         " !dlr with "Invalid Source Address" user3 ""
+check "false ''         "  !dlr with "Invalid Source Address" user3 ""
 check "false 375296660099" !dlr with "Invalid Source Address" user3 375296660099
+
+echo "#"
+echo "# Check originator routing"
+echo "#"
+
+echo "# override originator: empty"
+# if source is NOT given use default
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user "" 375296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user "" 999296660000
+
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user 375296660001 375296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user 375296660001 999296660000
+
+check "receipt:accepted # sink/default should succ" dlr with "stat:ACCEPTD" user "sink_default,5,0" 999296660000
+check "receipt:accepted # sink/sim should succ" dlr with "stat:DELIVRD" user "sink_sim,5,0" 999296660000
+
+echo "# override originator: any"
+# route on source if given
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user2 "" 375296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user2 "" 999296660000
+
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user2 375296660001 375296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user2 375296660001 999296660000
+
+check "receipt:accepted # sink/default should succ" dlr with "stat:ACCEPTD" user2 "sink_default,5,0" 999296660000
+check "receipt:accepted # sink/sim should succ" dlr with "stat:DELIVRD" user2 "sink_sim,5,0" 999296660000
+
+echo "# override originator: false"
+# use whatever source given
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user3 375296660001 375296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user3 375296660001 999296660000
+
+check "receipt:accepted # sink/default should succ" dlr with "stat:ACCEPTD" user3 "sink_default,5,0" 999296660000
+check "receipt:accepted # sink/sim should succ" dlr with "stat:DELIVRD" user3 "sink_sim,5,0" 999296660000
 
 echo "#"
 echo "# Check delivery statuses"
