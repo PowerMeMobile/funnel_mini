@@ -82,32 +82,40 @@ echo "#"
 echo "# override originator: empty"
 # if source is NOT given use default
 check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user "" 375296660000
-check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user "" 999296660000
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user "" 999296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user "" 888296660000
 
 check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user 375296660001 375296660000
-check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user 375296660001 999296660000
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user 375296660001 999296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user 375296660001 888296660000
 
-check "receipt:accepted # sink/default should succ" dlr with "stat:ACCEPTD" user "sink_default,5,0" 999296660000
-check "receipt:accepted # sink/sim should succ" dlr with "stat:DELIVRD" user "sink_sim,5,0" 999296660000
+check "receipt:accepted # sims should succ" dlr with "stat:ACCEPTD" user "sims,5,0" 375296660000
+check "receipt:accepted # sims should succ" dlr with "stat:DELIVRD" user "sims,5,0" 999296660000
+check "receipt:accepted # sims should fail" dlr with "Invalid Destination Address" user "sims,5,0" 888296660000
 
 echo "# override originator: any"
 # route on source if given
 check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user2 "" 375296660000
-check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user2 "" 999296660000
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user2 "" 999296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user2 "" 888296660000
 
 check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user2 375296660001 375296660000
-check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user2 375296660001 999296660000
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user2 375296660001 999296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user2 375296660001 888296660000
 
-check "receipt:accepted # sink/default should succ" dlr with "stat:ACCEPTD" user2 "sink_default,5,0" 999296660000
-check "receipt:accepted # sink/sim should succ" dlr with "stat:DELIVRD" user2 "sink_sim,5,0" 999296660000
+check "receipt:accepted # sims should succ" dlr with "stat:ACCEPTD" user2 "sims,5,0" 375296660000
+check "receipt:accepted # sims should succ" dlr with "stat:DELIVRD" user2 "sims,5,0" 999296660000
+check "receipt:accepted # sims should fail" dlr with "Invalid Destination Address" user2 375296660001 888296660000
 
 echo "# override originator: false"
 # use whatever source given
 check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user3 375296660001 375296660000
-check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user3 375296660001 999296660000
+check "receipt:accepted # default should succ" dlr with "stat:ACCEPTD" user3 375296660001 999296660000
+check "receipt:accepted # default should fail" dlr with "Invalid Destination Address" user3 375296660001 888296660000
 
-check "receipt:accepted # sink/default should succ" dlr with "stat:ACCEPTD" user3 "sink_default,5,0" 999296660000
-check "receipt:accepted # sink/sim should succ" dlr with "stat:DELIVRD" user3 "sink_sim,5,0" 999296660000
+check "receipt:accepted # sims should succ" dlr with "stat:ACCEPTD" user3 "sims,5,0" 375296660000
+check "receipt:accepted # sims should succ" dlr with "stat:DELIVRD" user3 "sims,5,0" 999296660000
+check "receipt:accepted # sims should fail" dlr with "Invalid Destination Address" user3 "sims,5,0" 888296660000
 
 echo "#"
 echo "# Check delivery statuses"
