@@ -118,6 +118,13 @@ check "receipt:accepted # sims should succ" dlr with "stat:DELIVRD" user3 "sims,
 check "receipt:accepted # sims should fail" dlr with "Invalid Destination Address" user3 "sims,5,0" 888296660000
 
 echo "#"
+echo "# Check blocklist"
+echo "#"
+
+check "blocklisted w/o space" !dlr with "ERROR: Failed with: (0x00000400)" user 375296660001 375296666666
+check "blocklisted w/ spaces" !dlr with "ERROR: Failed with: (0x00000400)" user 375296660001 ' 375296666666  '
+
+echo "#"
 echo "# Check delivery statuses"
 echo "#"
 

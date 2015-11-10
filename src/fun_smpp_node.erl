@@ -566,8 +566,10 @@ step(validate_source_ton_npi, {SeqNum, Params}, St) ->
     end;
 
 step(check_blacklist, {SeqNum, Params}, St) ->
+    DestAddr = ?KEYFIND2(destination_addr, Params),
+    DestAddr2 = string:strip(DestAddr, both, $\s),
     DstAddr = #addr{
-        addr = list_to_binary(?KEYFIND2(destination_addr, Params)),
+        addr = list_to_binary(DestAddr2),
         ton  = ?KEYFIND2(dest_addr_ton, Params),
         npi  = ?KEYFIND2(dest_addr_npi, Params)
     },
