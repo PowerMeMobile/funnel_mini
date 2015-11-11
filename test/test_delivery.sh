@@ -123,6 +123,7 @@ echo "#"
 
 check "blocklisted w/o space" !dlr with "ERROR: Failed with: (0x00000400)" user 375296660001 375296666666
 check "blocklisted w/ spaces" !dlr with "ERROR: Failed with: (0x00000400)" user 375296660001 ' 375296666666  '
+check "blocklisted w/ linefeed" !dlr with "ERROR: Failed with: (0x00000400)" user 375296660001 `echo '375296666666\n'`
 
 echo "#"
 echo "# Check delivery statuses"
