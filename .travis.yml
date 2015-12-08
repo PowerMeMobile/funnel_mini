@@ -5,6 +5,7 @@ otp_release:
 notifications:
   email:
     - d.klionsky@dev.powermemobile.com
+    - a.sizov@dev1team.net
 before_install:
  - sudo apt-get update -qq
  - sudo apt-get install -qq uuid-dev libtokyocabinet-dev
