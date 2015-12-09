@@ -1,5 +1,7 @@
 deps
-ebin
+ebin/*.beam
+ebin/*.app
+ebin/*.hrl
 .eunit
 src/FunnelAsn.erl
 src/JustAsn.erl
