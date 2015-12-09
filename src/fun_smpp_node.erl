@@ -566,6 +566,12 @@ step(validate_source_ton_npi, {SeqNum, Params}, St) ->
     end;
 
 step(check_blacklist, {SeqNum, Params}, St) ->
+    case get_bypass_blacklist_feature_value(St#st.features_tab) of
+        true -> step(check_blacklist1, {SeqNum, Params}, St);
+        false -> step(ensure_message, {SeqNum, Params}, St)
+    end;
+
+step(check_blacklist1, {SeqNum, Params}, St) ->
     DestAddr = list_to_binary(?KEYFIND2(destination_addr, Params)),
     DstAddr = #addr{
         addr = alley_services_coverage:strip_non_digits(DestAddr),
@@ -797,6 +803,10 @@ known_features(Features) ->
 
 known_feature({<<"override_originator">>, Value}) ->
     {override_originator, binary_to_existing_atom(Value, utf8)};
+known_feature({<<"bypass_blacklist">>, Boolean}) when
+            Boolean =:= <<"false">> orelse
+            Boolean =:= <<"true">> ->
+    {bypass_blacklist, binary_to_atom(Boolean, utf8)};
 known_feature(_) ->
     false.
 
@@ -1052,4 +1062,13 @@ find_tab(Id, TabMap) ->
         false ->
             {_, Tab} = lists:keyfind(customer, 1, TabMap),
             Tab
+    end.
+
+
+get_bypass_blacklist_feature_value(Tab) ->
+    case ets:lookup(Tab, bypass_blacklist) of
+        [{_, Value}] ->
+            Value;
+        [] ->
+            false
     end.
