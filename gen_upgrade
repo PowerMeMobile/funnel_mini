@@ -33,14 +33,23 @@ function download {
     patch rel/${PRJ_NAME_W_VER}/lib/entop-0.0.1/ebin/entop.app entop.patch
     patch rel/${PRJ_NAME_W_VER}/lib/cecho-0.0.3/ebin/cecho.app cecho.patch
 
-    ln -s funnel.rel rel/${PRJ_NAME_W_VER}/releases/${1}/${1}.rel
-    ln -s funnel.boot rel/${PRJ_NAME_W_VER}/releases/${1}/${1}.boot
+
+    ln -s funnel.rel rel/${PRJ_NAME_W_VER}/releases/${1}/funnel-${1}.rel
+    ln -s funnel.boot rel/${PRJ_NAME_W_VER}/releases/${1}/funnel-${1}.boot
+    ln -s funnel.boot rel/${PRJ_NAME_W_VER}/releases/${1}/start.boot
 }
 
 download ${FROM_VSN}
 download ${TO_VSN}
 
-ln -s ${PRJ_NAME}-${TO_VSN} rel/funnel
-ln -s ${PRJ_NAME}-${TO_VSN} rel/funnel_mini
+UPGRADE_TO=rel/funnel_mini-${TO_VSN}/releases/${TO_VSN}/funnel-${TO_VSN}
+UPGRADE_TO_EBIN_PATH=rel/funnel_mini-${TO_VSN}/lib/*/ebin
+UPGRADE_TO_RELEASE_PATH=rel/funnel_mini-${TO_VSN}/releases/${TO_VSN}/
+UPGRADE_FROM=rel/funnel_mini-${FROM_VSN}/releases/${FROM_VSN}/funnel-${FROM_VSN}
+DOWNGRADE_TO=${UPGRADE_FROM}
+UPGRADE_FROM_EBIN_PATH=rel/funnel_mini-${FROM_VSN}/lib/*/ebin
 
-./rebar generate-upgrade previous_release=${PRJ_NAME}-${FROM_VSN}
+erl -eval "systools:make_relup(\"${UPGRADE_TO}\", [\"${UPGRADE_FROM}\"], [\"${DOWNGRADE_TO}\"], [{path, [\"${UPGRADE_TO_EBIN_PATH}\", \"${UPGRADE_FROM_EBIN_PATH}\"]}, {outdir, \"${UPGRADE_TO_RELEASE_PATH}\"}])." -s init stop -noshell
+
+erl -eval "systools:make_tar(\"${UPGRADE_TO}\", [{path, [\"${UPGRADE_TO_EBIN_PATH}\"]}, {outdir, \"rel/\"},{dirs,[include]}])." -s init stop -noshell
+
