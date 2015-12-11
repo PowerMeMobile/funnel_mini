@@ -9,6 +9,8 @@ all: generate
 generate: compile xref
 	@rm -rf ./rel/$(NAME)
 	@./rebar generate
+	$(info Rewrite RELEASES file with relative applications directory path)
+	cd rel/funnel_mini && erl -eval '[ReleaseDir] = [D || D <- string:tokens(os:cmd("ls -1 releases/"), "\n"), D =/= "RELEASES", D =/= "start_erl.data"], ok = release_handler:create_RELEASES(".", "releases", "releases/"++ ReleaseDir ++"/funnel.rel", []).' -s init stop -noshell && cd -
 
 compile: get-deps
 	@./rebar compile
