@@ -1,0 +1,10 @@
+--- rel/funnel/lib/cecho-0.0.3/ebin/cecho.app	2015-12-10 20:49:29.000000000 +0300
++++ deps/cecho/ebin/cecho.app	2015-12-10 16:49:15.682937287 +0300
+@@ -2,5 +2,7 @@
+  [{description, "An ncurses library for Erlang"},
+   {vsn, "0.0.3"},
+   {modules, [cecho, cecho_srv, cecho_example]},
++  {registered, [cecho_srv]},
++  {applications, []},
+   {env, []},
+   {mod, {cecho, []}}]}.

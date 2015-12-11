@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# create patch
+# diff -u rel/funnel/lib/entop-0.0.1/ebin/entop.app deps/entop/ebin/entop.app > entop.patch
+# diff -u rel/funnel/lib/cecho-0.0.3/ebin/cecho.app deps/cecho/ebin/cecho.app > cecho.patch
+
+set -e
+
+echo Cleanup
+rm -rf rel/funnel rel/funnel_mini* rel/*.tar.gz
+
+SUS_ARCH_USER=${1}
+SUS_ARCH_PASS=${2}
+FROM_VSN=${3}
+TO_VSN=${4}
+
+TAR_TMP_BASE=/tmp/
+TAR_URL_BASE=http://sus.dev1team.net/sus/poweralley/
+PRJ_NAME=funnel_mini
+TAR_NAME_BASE=centos6.x86_64.tar.gz
+
+echo Generate upgrade from ${FROM_VSN} to ${TO_VSN}
+
+function download {
+    PRJ_NAME_W_VER=${PRJ_NAME}-${1}
+    TAR_NAME=${PRJ_NAME_W_VER}-${TAR_NAME_BASE}
+    TAR_URL=${TAR_URL_BASE}${TAR_NAME}
+    TAR_TMP=${TAR_TMP_BASE}${TAR_NAME}
+    wget --http-user=${SUS_ARCH_USER} --http-password=${SUS_ARCH_PASS} -O ${TAR_TMP} ${TAR_URL}
+
+    tar xzf ${TAR_TMP} -C rel/
+
+    patch rel/${PRJ_NAME_W_VER}/lib/entop-0.0.1/ebin/entop.app entop.patch
+    patch rel/${PRJ_NAME_W_VER}/lib/cecho-0.0.3/ebin/cecho.app cecho.patch
+
+    ln -s funnel.rel rel/${PRJ_NAME_W_VER}/releases/${1}/${1}.rel
+    ln -s funnel.boot rel/${PRJ_NAME_W_VER}/releases/${1}/${1}.boot
+}
+
+download ${FROM_VSN}
+download ${TO_VSN}
+
+ln -s ${PRJ_NAME}-${TO_VSN} rel/funnel
+ln -s ${PRJ_NAME}-${TO_VSN} rel/funnel_mini
+
+./rebar generate-upgrade previous_release=${PRJ_NAME}-${FROM_VSN}

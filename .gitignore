@@ -12,5 +12,5 @@ src/*.asn1db
 priv/mibs/*.bin
 priv/*.so
 mibs/.index
-rel/funnel_mini
+rel/funnel*
 TAGS
