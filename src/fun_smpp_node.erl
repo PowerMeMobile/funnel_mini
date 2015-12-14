@@ -567,8 +567,8 @@ step(validate_source_ton_npi, {SeqNum, Params}, St) ->
 
 step(check_blacklist, {SeqNum, Params}, St) ->
     case get_bypass_blacklist_feature_value(St#st.features_tab) of
-        true -> step(check_blacklist1, {SeqNum, Params}, St);
-        false -> step(ensure_message, {SeqNum, Params}, St)
+        false -> step(check_blacklist1, {SeqNum, Params}, St);
+        true -> step(ensure_message, {SeqNum, Params}, St)
     end;
 
 step(check_blacklist1, {SeqNum, Params}, St) ->
