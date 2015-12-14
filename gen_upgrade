@@ -36,7 +36,9 @@ function download {
 
     ln -s funnel.rel rel/${PRJ_NAME_W_VER}/releases/${1}/funnel-${1}.rel
     ln -s funnel.boot rel/${PRJ_NAME_W_VER}/releases/${1}/funnel-${1}.boot
-    ln -s funnel.boot rel/${PRJ_NAME_W_VER}/releases/${1}/start.boot
+    if [ ! -f rel/${PRJ_NAME_W_VER}/releases/${1}/start.boot ]; then
+	ln -s funnel.boot rel/${PRJ_NAME_W_VER}/releases/${1}/start.boot
+    fi
 }
 
 download ${FROM_VSN}
