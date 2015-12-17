@@ -13,4 +13,5 @@ priv/mibs/*.bin
 priv/*.so
 mibs/.index
 rel/funnel*
+rel/_tmp
 TAGS
