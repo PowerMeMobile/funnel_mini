@@ -165,10 +165,6 @@ case "$1" in
         BINDIR=$ROOTDIR/erts-$ERTS_VSN/bin
         EMU=beam
         PROGNAME=`echo $0 | sed 's/.*\\///'`
-        if [ ! -f "$RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE.boot" ];then
-            echo Can\'t find boot file ${BOOTFILE}.boot, try use start.boot
-            BOOTFILE=start
-        fi
         CMD="$BINDIR/erlexec -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE -mode embedded -config $CONFIG_PATH -args_file $VMARGS_PATH -- ${1+"$@"} $DEV_HOOK"
         export EMU
         export ROOTDIR
