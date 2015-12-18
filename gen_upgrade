@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# create patch
 # diff -u rel/funnel/lib/entop-0.0.1/ebin/entop.app deps/entop/ebin/entop.app > entop.patch
 # diff -u rel/funnel/lib/cecho-0.0.3/ebin/cecho.app deps/cecho/ebin/cecho.app > cecho.patch
 
@@ -14,7 +13,6 @@ TO_VSN=${4}
 REL_TAR_TMP=_tmp
 TMP=/tmp/
 TAR_URL_BASE=http://sus.dev1team.net/sus/poweralley/
-#PRJ_NAME=kelly
 REPO_NAME=funnel_mini
 REL_NAME=funnel
 TAR_NAME_BASE=centos6.x86_64.tar.gz
@@ -33,8 +31,10 @@ function download {
 
     tar xzf ${TAR_TMP} -C rel/
 
-    patch rel/${PRJ_NAME_W_VER}/lib/entop-0.0.1/ebin/entop.app entop.patch
-    patch rel/${PRJ_NAME_W_VER}/lib/cecho-0.0.3/ebin/cecho.app cecho.patch
+    if [[ "${REL_NAME}" == "funnel" || "${REL_NAME}" == "kelly" ]]; then
+        patch rel/${PRJ_NAME_W_VER}/lib/entop-0.0.1/ebin/entop.app entop.patch
+        patch rel/${PRJ_NAME_W_VER}/lib/cecho-0.0.3/ebin/cecho.app cecho.patch
+    fi
 
     ln -s ${REL_NAME}.rel rel/${PRJ_NAME_W_VER}/releases/${1}/${REL_NAME}-${1}.rel
     ln -s ${REL_NAME}.boot rel/${PRJ_NAME_W_VER}/releases/${1}/${REL_NAME}-${1}.boot
@@ -54,10 +54,10 @@ DOWNGRADE_TO=${UPGRADE_FROM}
 UPGRADE_FROM_EBIN_PATH=rel/${REPO_NAME}-${FROM_VSN}/lib/*/ebin
 
 echo Generate relup
-erl -eval "systools:make_relup(\"${UPGRADE_TO}\", [\"${UPGRADE_FROM}\"], [\"${DOWNGRADE_TO}\"], [{path, [\"${UPGRADE_TO_EBIN_PATH}\", \"${UPGRADE_FROM_EBIN_PATH}\"]}, {outdir, \"${UPGRADE_TO_RELEASE_PATH}\"}])." -s init stop -noshell
+erl -eval "ok = systools:make_relup(\"${UPGRADE_TO}\", [\"${UPGRADE_FROM}\"], [\"${DOWNGRADE_TO}\"], [{path, [\"${UPGRADE_TO_EBIN_PATH}\", \"${UPGRADE_FROM_EBIN_PATH}\"]}, {outdir, \"${UPGRADE_TO_RELEASE_PATH}\"}])." -s init stop -noshell
 
 echo Generate upgrade tar
-erl -eval "systools:make_tar(\"${UPGRADE_TO}\", [{path, [\"${UPGRADE_TO_EBIN_PATH}\"]}, {outdir, \"rel/\"},{dirs,[include]}])." -s init stop -noshell
+erl -eval "ok = systools:make_tar(\"${UPGRADE_TO}\", [{path, [\"${UPGRADE_TO_EBIN_PATH}\"]}, {outdir, \"rel/\"},{dirs,[include]}])." -s init stop -noshell
 
 echo Add ${REL_NAME}.boot, start_clean.boot and vm.args to upgrade tar
 
