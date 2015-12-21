@@ -578,11 +578,7 @@ step(check_blacklist1, {SeqNum, Params}, St) ->
         ton  = ?KEYFIND2(dest_addr_ton, Params),
         npi  = ?KEYFIND2(dest_addr_npi, Params)
     },
-    SrcAddr = #addr{
-        addr = list_to_binary(?KEYFIND2(source_addr, Params)),
-        ton  = ?KEYFIND2(source_addr_ton, Params),
-        npi  = ?KEYFIND2(source_addr_npi, Params)
-    },
+    SrcAddr = alley_services_utils:addr_to_dto(list_to_binary(?KEYFIND2(source_addr, Params))),
     case alley_services_blacklist:check(DstAddr, SrcAddr) of
         allowed ->
             step(ensure_message, {SeqNum, Params}, St);
